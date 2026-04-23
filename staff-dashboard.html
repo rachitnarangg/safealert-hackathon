@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Staff Dashboard — Crisis Response</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+    :root {
+      --red: #FF3B30; --blue: #007AFF; --silver: #8E8E93;
+      --black: #1C1C1E; --green: #34C759; --orange: #FF9500;
+      --bg: #F2F2F7; --panel-bg: #FFFFFF;
+      --text: #1C1C1E; --text-sec: #8E8E93; --text-tertiary: #C7C7CC;
+      --border: rgba(60,60,67,0.1);
+      --shadow: 0 4px 20px rgba(0,0,0,0.04), 0 1px 4px rgba(0,0,0,0.02);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 320px 1fr 380px;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* PANELS */
+    .panel {
+      background: var(--panel-bg);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      box-shadow: var(--shadow);
+      z-index: 2;
+    }
+    
+    .header {
+      padding: 24px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      background: var(--panel-bg);
+    }
+    .header h2 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+    .header p { font-size: 13px; color: var(--text-sec); margin-top: 4px; font-weight: 500; }
+
+    /* LEFT SIDEBAR: ALERTS */
+    .alerts-feed {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .alerts-feed::-webkit-scrollbar { display: none; }
+    
+    .alert-card {
+      background: var(--bg);
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+    .alert-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+    .alert-card.active { border-color: var(--border); background: #FFFFFF; box-shadow: var(--shadow); }
+    
+    .alert-card.severity-high { border-left: 4px solid var(--red); }
+    .alert-card.severity-medium { border-left: 4px solid var(--orange); }
+    
+    .alert-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;}
+    .alert-type { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .alert-icon { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
+    .alert-icon svg { width: 100%; height: 100%; }
+    .alert-time { font-size: 11px; color: var(--text-sec); font-weight: 600; }
+    .alert-loc { font-size: 13px; color: var(--text-sec); display: flex; align-items: center; gap: 4px; font-weight: 500;}
+    .alert-loc svg { width: 14px; height: 14px; fill: currentColor; }
+    
+    /* MAIN AREA */
+    .main-area {
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background: var(--bg);
+      z-index: 1;
+    }
+    
+    .top-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      padding: 24px;
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      z-index: 10;
+    }
+    
+    .stat-box {
+      background: var(--panel-bg);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .stat-val { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; color: var(--text); }
+    .stat-label { font-size: 11px; font-weight: 700; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.05em;}
+    
+    .map-container {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 24px 24px;
+    }
+    .map-svg { width: 100%; height: 100%; }
+    .map-marker {
+      position: absolute; width: 14px; height: 14px; background: var(--red); border-radius: 50%;
+      transform: translate(-50%, -50%); display: none;
+      animation: pulseMarker 2s infinite;
+    }
+    @keyframes pulseMarker {
+      0% { box-shadow: 0 0 0 0 rgba(255,59,48,0.4); }
+      70% { box-shadow: 0 0 0 15px rgba(255,59,48,0); }
+      100% { box-shadow: 0 0 0 0 rgba(255,59,48,0); }
+    }
+
+    /* RIGHT SIDEBAR */
+    .details-pane {
+      flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px;
+    }
+    .details-pane::-webkit-scrollbar { display: none; }
+    
+    .empty-state { margin: auto; text-align: center; color: var(--text-sec); font-size: 14px; padding: 20px; }
+    
+    .detail-section {
+      background: var(--bg); border-radius: var(--radius); padding: 16px;
+    }
+    .detail-section h3 {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-sec); margin-bottom: 12px;
+    }
+
+    /* Timeline */
+    .timeline { display: flex; flex-direction: column; gap: 12px; position: relative; }
+    .timeline::before { content: ''; position: absolute; left: 7px; top: 8px; bottom: 8px; width: 2px; background: var(--border); }
+    .tl-item { display: flex; gap: 12px; position: relative; z-index: 1; }
+    .tl-dot { width: 16px; height: 16px; border-radius: 50%; background: var(--bg); border: 4px solid var(--blue); flex-shrink: 0; margin-top: 2px;}
+    .tl-dot.fire { border-color: var(--red); }
+    .tl-dot.medical { border-color: var(--blue); }
+    .tl-dot.security { border-color: var(--text-sec); }
+    .tl-dot.others { border-color: var(--orange); }
+    .tl-content { flex: 1; background: #FFFFFF; padding: 12px; border-radius: 12px; box-shadow: var(--shadow); font-size: 13px; line-height: 1.4; border: 1px solid var(--border); }
+    .tl-time { font-size: 11px; color: var(--text-sec); font-weight: 600; margin-bottom: 4px; }
+    .tl-img { width: 100%; border-radius: 8px; margin-top: 8px; }
+
+    /* Status Items */
+    .status-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .status-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .status-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .status-name svg { width: 16px; height: 16px; fill: var(--text-sec); }
+    .status-badge { font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 8px; }
+    .badge-pending { background: rgba(255,149,0,0.1); color: var(--orange); }
+    .badge-active { background: rgba(52,199,89,0.1); color: var(--green); }
+
+    /* Action Buttons */
+    .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
+    .btn {
+      width: 100%; padding: 14px; border-radius: 14px; border: none; font-size: 14px; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+      transition: all 0.15s;
+    }
+    .btn svg { width: 18px; height: 18px; }
+    .btn:active { transform: scale(0.96); }
+    
+    .btn-call { background: rgba(52,199,89,0.1); color: var(--green); }
+    .btn-call:hover { background: rgba(52,199,89,0.15); }
+    .btn-call svg { fill: currentColor; }
+    
+    .btn-911 { background: rgba(255,59,48,0.1); color: var(--red); }
+    .btn-911:hover { background: rgba(255,59,48,0.15); }
+    .btn-911 svg { stroke: currentColor; stroke-width: 2; fill: none; }
+    
+    .btn-resolve { background: rgba(0,122,255,0.08); color: var(--blue); margin-top: 4px;}
+    .btn-resolve:hover { background: rgba(0,122,255,0.14); }
+    .btn-resolved { background: rgba(52,199,89,0.1); color: var(--green); margin-top: 4px; pointer-events: none; }
+
+    /* Dropdown Comms */
+    .comms-dropdown { background: var(--panel-bg); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 16px; box-shadow: var(--shadow); }
+    .comms-header { padding: 14px 16px; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: var(--bg); transition: background 0.15s; }
+    .comms-header:hover { background: #E5E5EA; }
+    .comms-header svg { width: 16px; height: 16px; transition: transform 0.2s; }
+    .comms-dropdown.open .comms-header svg { transform: rotate(180deg); }
+    .comms-body { padding: 16px; display: none; flex-direction: column; gap: 12px; }
+    .comms-dropdown.open .comms-body { display: flex; }
+    .comms-input { width: 100%; min-height: 80px; padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); font-family: inherit; font-size: 13px; resize: none; outline: none; }
+    .comms-input:focus { border-color: var(--blue); background: #FFFFFF; }
+    .btn-send-update { background: var(--blue); color: #fff; border: none; border-radius: 10px; padding: 10px; font-size: 13px; font-weight: 700; cursor: pointer; text-align: center; }
+    .btn-send-update:active { opacity: 0.8; }
+
+    /* Modal & Toast CSS */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.52); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); display: flex; align-items: flex-end; justify-content: center; opacity: 0; pointer-events: none; z-index: 100; transition: opacity .3s; }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal-sheet { background: var(--panel-bg); border-radius: 28px 28px 0 0; padding: 24px 24px 44px; width: 100%; max-width: 400px; transform: translateY(100%); transition: transform 0.44s cubic-bezier(.4,0,.2,1); }
+    .modal-overlay.open .modal-sheet { transform: translateY(0); }
+    .modal-drag { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 22px; }
+    .call-avatar { width: 90px; height: 90px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+    .call-avatar svg { width: 44px; height: 44px; }
+    .call-modal-name { font-size: 27px; font-weight: 800; text-align: center; letter-spacing: -.01em; color: var(--text); }
+    .call-modal-num { font-size: 16px; color: var(--text-sec); text-align: center; margin: 4px 0 28px; }
+    .call-action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .call-action-btn { border: none; border-radius: 18px; padding: 18px 10px 14px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 9px; transition: transform .15s, opacity .15s; font-size: 15px; font-weight: 700; }
+    .call-action-btn:active { transform: scale(0.95); opacity: .85; }
+    .call-action-btn svg { width: 28px; height: 28px; }
+    .call-btn-cancel { background: var(--bg); color: var(--red); }
+    .call-btn-call { background: var(--green); color: #fff; }
+    
+    .toast { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%) translateY(18px); background: var(--black); color: #fff; padding: 11px 22px; border-radius: 30px; font-size: 15px; font-weight: 600; opacity: 0; pointer-events: none; z-index: 300; transition: all .3s; white-space: nowrap; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* Helplines CSS */
+    .helplines-wrap { padding: 12px; border-top: 1px solid var(--border); flex-shrink: 0; background: var(--panel-bg); overflow: visible; }
+    .helplines-title { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text-sec); margin-bottom: 8px; }
+    .helplines-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .helpline-pill { background: var(--bg); border: 1px solid transparent; border-radius: 10px; padding: 8px 10px; font-size: 12px; font-weight: 600; color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background .15s, border-color .15s; text-align: left; white-space: nowrap; }
+    .helpline-pill:hover { border-color: var(--border); background: #FFFFFF; }
+    .helpline-pill:active { transform: scale(0.98); }
+    .helpline-pill svg { width: 14px; height: 14px; flex-shrink: 0; }
+    .pip { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+    /* MOBILE NAV */
+    .mobile-nav { display: none; }
+
+    /* RESPONSIVE */
+    @media (max-width: 1024px) {
+      body { grid-template-columns: 280px 1fr 340px; }
+    }
+
+    @media (max-width: 768px) {
+      body {
+        display: flex;
+        flex-direction: column;
+        grid-template-columns: none;
+        overflow: hidden;
+      }
+
+      .panel, .main-area { height: 100%; width: 100%; position: absolute; inset: 0; }
+      .panel, .main-area { display: none; flex-direction: column; }
+      .panel.mobile-active, .main-area.mobile-active { display: flex; }
+
+      .mobile-nav {
+        display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 600;
+        background: var(--panel-bg); border-top: 1px solid var(--border);
+        padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px));
+        box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+      }
+      .nav-btn {
+        flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+        background: none; border: none; cursor: pointer; padding: 6px 0;
+        color: var(--text-sec); font-size: 10px; font-weight: 600;
+        transition: color 0.15s;
+      }
+      .nav-btn.active { color: var(--blue); }
+      .nav-btn svg { width: 22px; height: 22px; }
+
+      .top-stats {
+        position: relative; padding: 16px; gap: 10px;
+      }
+      .stat-box { padding: 12px 14px; }
+      .stat-val { font-size: 22px; }
+
+      .map-container { padding: 12px; }
+
+      .header { padding: 16px; }
+      .header h2 { font-size: 18px; }
+
+      .helplines-row { flex-direction: row; flex-wrap: wrap; }
+      .helpline-pill { flex: 1; min-width: calc(50% - 4px); font-size: 12px; padding: 8px 10px; }
+
+      .details-pane { padding: 16px; padding-bottom: 80px; }
+      .alerts-feed { padding-bottom: 80px; }
+
+      .modal-sheet { max-width: 100%; border-radius: 20px 20px 0 0; }
+    }
+
+    /* LOGIN SCREEN */
+    .login-screen {
+      position: fixed; inset: 0; z-index: 1000;
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      transition: opacity 0.4s, transform 0.4s;
+    }
+    .login-screen.hidden { opacity: 0; pointer-events: none; transform: scale(1.03); }
+    .login-card {
+      background: var(--panel-bg); border-radius: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.1), 0 4px 16px rgba(0,0,0,0.04);
+      padding: 44px 36px 36px; width: 100%; max-width: 380px; text-align: center;
+    }
+    .login-logo {
+      width: 64px; height: 64px; border-radius: 18px; background: var(--red);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px; box-shadow: 0 6px 20px rgba(255,59,48,0.3);
+    }
+    .login-logo svg { width: 32px; height: 32px; }
+    .login-card h1 { font-size: 24px; font-weight: 800; margin-bottom: 4px; letter-spacing: -0.02em; }
+    .login-card .login-sub { font-size: 14px; color: var(--text-sec); margin-bottom: 28px; }
+    .login-field {
+      width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border);
+      background: var(--bg); font-size: 15px; font-family: inherit; outline: none;
+      margin-bottom: 12px; transition: border-color 0.15s;
+    }
+    .login-field:focus { border-color: var(--blue); background: #fff; }
+    .login-btn {
+      width: 100%; padding: 16px; border-radius: 14px; border: none;
+      background: var(--blue); color: #fff; font-size: 16px; font-weight: 700;
+      cursor: pointer; margin-top: 8px; transition: opacity 0.15s, transform 0.15s;
+    }
+    .login-btn:active { opacity: 0.85; transform: scale(0.98); }
+    .login-error { color: var(--red); font-size: 13px; font-weight: 600; margin-top: 12px; display: none; }
+    .login-hotel { font-size: 12px; color: var(--text-sec); margin-top: 20px; font-weight: 500; }
+    .logout-btn {
+      background: none; border: 1px solid var(--border); border-radius: 8px;
+      padding: 6px 14px; font-size: 12px; font-weight: 600; color: var(--text-sec);
+      cursor: pointer; margin-left: 12px; transition: background 0.15s;
+    }
+    .logout-btn:hover { background: var(--bg); }
+
+    @media (max-width: 480px) {
+      .login-card { margin: 16px; padding: 32px 24px 28px; }
+    }
+
+    /* ALERT FLASH OVERLAY */
+    .flash-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      pointer-events: none; opacity: 0;
+      background-color: rgba(255, 0, 0, 0.65); /* Bloody red */
+      mix-blend-mode: multiply;
+      transition: opacity 0.2s;
+    }
+    body.alert-flash .flash-overlay {
+      animation: screenPulse 1s ease-in-out infinite;
+    }
+    @keyframes screenPulse {
+      0%, 100% { opacity: 0; }
+      50% { opacity: 1; }
+    }
+
+    .escalation-badge {
+      font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+      color: #fff; background: var(--red); padding: 3px 8px; border-radius: 6px;
+      animation: escalatePulse 1s infinite;
+    }
+    @keyframes escalatePulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  </style>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  
+  <div class="flash-overlay"></div>
+
+  <!-- LOGIN SCREEN -->
+  <div class="login-screen" id="loginScreen">
+    <div class="login-card">
+      <div class="login-logo">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" fill="rgba(255,255,255,0.95)"/></svg>
+      </div>
+      <h1>Staff Portal</h1>
+      <div class="login-sub" id="loginHotelName">SafeAlert Crisis Response</div>
+      <input class="login-field" id="loginUser" placeholder="Username" autocomplete="username">
+      <input class="login-field" id="loginPass" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')attemptLogin()">
+      <button class="login-btn" onclick="attemptLogin()">Sign In</button>
+      <div class="login-error" id="loginError">Invalid username or password</div>
+      <div class="login-hotel" id="loginFooter"></div>
+    </div>
+  </div>
+
+  <!-- MOBILE BOTTOM NAV -->
+  <nav class="mobile-nav" id="mobileNav">
+    <button class="nav-btn active" onclick="switchMobileTab(0)">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.73 21a2 2 0 01-3.46 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      Alerts
+    </button>
+    <button class="nav-btn" onclick="switchMobileTab(1)">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3V7z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 4v13M15 7v13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      Map
+    </button>
+    <button class="nav-btn" onclick="switchMobileTab(2)">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Details
+    </button>
+  </nav>
+
+  <!-- LEFT PANEL: ALERTS FEED -->
+  <div class="panel mobile-active" id="panelAlerts">
+    <div class="header">
+      <h2>Live Alerts</h2>
+      <p>Monitoring Facility & Guests <button class="logout-btn" onclick="logout()">Sign Out</button></p>
+    </div>
+    <div class="alerts-feed" id="alertsFeed">
+      <div class="empty-state">No active alerts.</div>
+    </div>
+    <div class="helplines-wrap">
+      <div class="helplines-title">Emergency Dial</div>
+      <div class="helplines-row">
+        <button class="helpline-pill" onclick="openCallModal('Fire Brigade','101')">
+          <div class="pip" style="background:#FF3B30"></div>
+          <svg viewBox="0 0 18 18" fill="none"><path d="M9 2C9 2 5 8 5 12.5A4 4 0 0013 12.5C13 8 9 2 9 2Z" fill="#FF3B30"/><circle cx="9" cy="12.5" r="1.5" fill="#fff"/></svg>
+          Fire (101)
+        </button>
+        <button class="helpline-pill" onclick="openCallModal('Ambulance','102')">
+          <div class="pip" style="background:#007AFF"></div>
+          <svg viewBox="0 0 18 18" fill="none"><rect x="7" y="3" width="4" height="12" rx="2" fill="#007AFF"/><rect x="3" y="7" width="12" height="4" rx="2" fill="#007AFF"/></svg>
+          Ambulance (102)
+        </button>
+        <button class="helpline-pill" onclick="openCallModal('Police','100')">
+          <div class="pip" style="background:#636366"></div>
+          <svg viewBox="0 0 18 18" fill="none"><path d="M9 2L3 4.5V10C3 14 6 17 9 18C12 17 15 14 15 10V4.5L9 2Z" fill="#636366"/><path d="M7 10l1.5 1.5L12 8" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Police (100)
+        </button>
+        <button class="helpline-pill" onclick="openCallModal('National Emergency','112')">
+          <div class="pip" style="background:#FF9500"></div>
+          <svg viewBox="0 0 18 18" fill="none"><path d="M9 2l1.7 5H17l-5 3.6 1.9 5.5L9 13l-4.9 3.1 1.9-5.5L1 7h6.3L9 2z" fill="#FF9500"/></svg>
+          National (112)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN AREA: MAP & DASHBOARD -->
+  <div class="main-area" id="panelMap">
+    <div class="top-stats">
+      <div class="stat-box">
+        <div class="stat-label">Active Incidents</div>
+        <div class="stat-val" style="color: var(--red);" id="statIncidents">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Staff Deployed</div>
+        <div class="stat-val" id="statStaff">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Est. Response</div>
+        <div class="stat-val" style="color: var(--green);" id="statTime">--:--</div>
+      </div>
+    </div>
+    
+    <div class="map-container">
+      <svg class="map-svg" viewBox="0 0 800 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="50" y="50" width="700" height="500" rx="24" fill="#FFFFFF" stroke="#E5E5EA" stroke-width="2"/>
+        <rect x="100" y="100" width="150" height="150" rx="12" fill="#F2F2F7" stroke="#D1D1D6"/>
+        <text x="175" y="180" text-anchor="middle" fill="#8E8E93" font-family="sans-serif" font-size="14" font-weight="600">Room 412</text>
+        <rect x="300" y="100" width="150" height="150" rx="12" fill="#F2F2F7" stroke="#D1D1D6"/>
+        <rect x="500" y="100" width="200" height="400" rx="12" fill="#F2F2F7" stroke="#D1D1D6"/>
+        <rect x="100" y="300" width="350" height="200" rx="12" fill="#F2F2F7" stroke="#D1D1D6"/>
+        <path d="M275 175 L400 175 L400 400" stroke="#007AFF" stroke-width="4" stroke-dasharray="10 10" opacity="0.3"/>
+      </svg>
+      <div class="map-marker" id="mapMarker" style="left: 21.8%; top: 29.1%;"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL: INCIDENT DETAILS -->
+  <div class="panel" id="panelDetails">
+    <div class="header">
+      <h2>Incident Management</h2>
+      <p id="detailSubtitle">Select an alert to view details</p>
+    </div>
+    
+    <div class="details-pane" id="detailsPane">
+      <div class="empty-state">Select an alert from the feed to view timeline and dispatch teams.</div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="callModal">
+    <div class="modal-sheet">
+      <div class="modal-drag"></div>
+      <div class="call-avatar" id="callAvatar">
+        <svg viewBox="0 0 48 48" fill="none"><path d="M8 12a4 4 0 014-4h3a1 1 0 011 .78l2 8a1 1 0 01-.57 1.12l-3 1.34a22 22 0 0010 10l1.34-3a1 1 0 011.12-.57l8 2a1 1 0 01.78 1V34a4 4 0 01-4 4C18 38 8 28 8 16z" id="callAvatarIcon" fill="#8E8E93"/></svg>
+      </div>
+      <div class="call-modal-name" id="callModalName">Front Desk</div>
+      <div class="call-modal-num" id="callModalNum">1000</div>
+      <div class="call-action-row">
+        <button class="call-action-btn call-btn-cancel" onclick="closeModal('callModal')">
+          <svg viewBox="0 0 28 28" fill="none"><line x1="5" y1="5" x2="23" y2="23" stroke="#FF3B30" stroke-width="2.5" stroke-linecap="round"/><line x1="23" y1="5" x2="5" y2="23" stroke="#FF3B30" stroke-width="2.5" stroke-linecap="round"/></svg>
+          Cancel
+        </button>
+        <button class="call-action-btn call-btn-call" onclick="confirmCall()">
+          <svg viewBox="0 0 28 28" fill="none"><path d="M5 9a3 3 0 013-3h2a1 1 0 011 .78l1.2 5.3a1 1 0 01-.56.8l-2.2 1.1a15 15 0 007.57 7.57l1.1-2.2a1 1 0 01.8-.56l5.3 1.2a1 1 0 01.78 1V22a3 3 0 01-3 3C11 25 5 19 5 11z" fill="#fff"/></svg>
+          Call
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let alertsData = [];
+    let activeAlertId = null;
+    let tickerInterval = null;
+
+    const ICONS = {
+      fire: `<svg viewBox="0 0 56 56" fill="none"><path d="M28 6C28 6 20 18 20 27C20 30.9 23.1 34 27 34C30.9 34 34 30.9 34 27C34 22 30 14 30 14C30 14 37 22 37 32C37 40.8 33 46 28 46C20.3 46 14 39.2 14 31C14 21 21 11 28 6Z" fill="#FF3B30"/></svg>`,
+      medical: `<svg viewBox="0 0 56 56" fill="none"><rect x="22" y="8" width="12" height="40" rx="6" fill="#007AFF"/><rect x="8" y="22" width="40" height="12" rx="6" fill="#007AFF"/></svg>`,
+      security: `<svg viewBox="0 0 56 56" fill="none"><path d="M28 7L10 14V27C10 38 18 47 28 50C38 47 46 38 46 27V14L28 7Z" fill="#636366"/></svg>`,
+      others: `<svg viewBox="0 0 56 56" fill="none"><path d="M28 8L51 46H5L28 8Z" fill="#FF9500"/></svg>`,
+      pin: `<svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`,
+      shield: `<svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>`,
+      building: `<svg viewBox="0 0 24 24"><path d="M15 11V5l-3-3-3 3v2H3v14h18V11h-6zm-8 8H5v-2h2v2zm0-4H5v-2h2v2zm0-4H5V9h2v2zm6 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V9h2v2zm0-4h-2V5h2v2zm6 12h-2v-2h2v2zm0-4h-2v-2h2v2z"/></svg>`
+    };
+
+    function startTicker() {
+      let seconds = 0;
+      clearInterval(tickerInterval);
+      tickerInterval = setInterval(() => {
+        seconds++;
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        document.getElementById('statTime').textContent = m + ':' + s.toString().padStart(2, '0');
+      }, 1000);
+    }
+
+    function loadAlerts() {
+      const data = localStorage.getItem('crisisAlerts');
+      if (data) {
+        alertsData = JSON.parse(data);
+        renderAlerts();
+        updateStats();
+        // Start escalation timers for new alerts
+        alertsData.forEach(a => { if (a.status === 'active') startEscalation(a.id); });
+      }
+    }
+
+    function renderAlerts() {
+      const feed = document.getElementById('alertsFeed');
+      if (alertsData.length === 0) {
+        feed.innerHTML = '<div class="empty-state">No active alerts.</div>';
+        return;
+      }
+
+      const sorted = [...alertsData].sort((a, b) => {
+        if (a.severity === 'high' && b.severity !== 'high') return -1;
+        if (a.severity !== 'high' && b.severity === 'high') return 1;
+        return new Date('1970/01/01 ' + b.time) - new Date('1970/01/01 ' + a.time);
+      });
+
+      feed.innerHTML = '';
+      sorted.forEach(alert => {
+        const card = document.createElement('div');
+        const sev = alert.severity === 'critical' ? 'high' : alert.severity;
+        card.className = `alert-card severity-${sev} ${alert.id === activeAlertId ? 'active' : ''}`;
+        card.onclick = () => selectAlert(alert.id);
+        
+        card.innerHTML = `
+          <div class="alert-header">
+            <div class="alert-type"><div class="alert-icon">${ICONS[alert.type] || ''}</div> ${alert.type} ${alert.escalated ? '<span class="escalation-badge">ESCALATED</span>' : ''}</div>
+            <div class="alert-time">${alert.time}</div>
+          </div>
+          <div class="alert-loc">${ICONS.pin} ${alert.room} · ${alert.floor} 
+            ${alert.children && alert.children.length > 0 ? `<strong style="color:var(--blue); font-size:10px;">(+${alert.children.length} clustered)</strong>` : ''}
+          </div>
+        `;
+        feed.appendChild(card);
+      });
+    }
+
+    function updateStats() {
+      const activeCount = alertsData.filter(a => a.status === 'active').length;
+      document.getElementById('statIncidents').textContent = activeCount;
+      if (activeCount > 0) {
+        document.getElementById('statStaff').textContent = activeCount * 2;
+        document.getElementById('mapMarker').style.display = 'block';
+        if(!tickerInterval) startTicker();
+      } else {
+        document.getElementById('statStaff').textContent = '0';
+        document.getElementById('statTime').textContent = '--:--';
+        document.getElementById('mapMarker').style.display = 'none';
+        clearInterval(tickerInterval);
+        tickerInterval = null;
+      }
+    }
+
+    function selectAlert(id) {
+      activeAlertId = id;
+      clearEscalation(id); // Acknowledge = stop escalation
+      stopAlertEffect();   // Stop siren & flash
+      renderAlerts();
+      
+      const alert = alertsData.find(a => a.id === id);
+      if (!alert) return;
+
+      document.getElementById('detailSubtitle').textContent = `Tracking ID: ${alert.id}`;
+      
+      let timelineHTML = `
+        <div class="tl-item">
+          <div class="tl-dot ${alert.type}"></div>
+          <div class="tl-content">
+            <div class="tl-time">${alert.time}</div>
+            <strong>${alert.type.toUpperCase()} Alert Initiated</strong><br>
+            Source: ${alert.room}, ${alert.floor}
+          </div>
+        </div>
+      `;
+
+      if (alert.children && alert.children.length > 0) {
+        let childHTML = '';
+        alert.children.forEach(c => {
+          childHTML += `<div style="padding: 6px; border-bottom: 1px solid var(--border); font-size: 11px;">
+            <strong>${c.room} (${c.floor})</strong> - ${c.time}
+          </div>`;
+        });
+        
+        timelineHTML += `
+          <div class="tl-item">
+            <div class="tl-dot" style="border-color: var(--blue);"></div>
+            <div class="tl-content" style="background: rgba(0,122,255,0.05);">
+              <div class="tl-time">${alert.time}</div>
+              <strong style="color:var(--blue); cursor:pointer;" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
+                AI Grouped ${alert.children.length} Individual Alerts (Click to Expand)
+              </strong>
+              <div style="display:none; margin-top:8px; background: #fff; border-radius: 6px; border: 1px solid var(--border);">${childHTML}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      if (alert.media && alert.media.length > 0) {
+        alert.media.forEach(m => {
+          let mediaLabel = '';
+          if (m.sender === 'staff') {
+            mediaLabel = `<strong style="color:var(--blue);">Staff Update:</strong> "${m.content}"`;
+          } else {
+            if (m.type === 'voice') mediaLabel = `<strong>Voice Note</strong> (${m.content})`;
+            if (m.type === 'text') mediaLabel = `<strong>Message:</strong> "${m.content}"`;
+            if (m.type === 'image') mediaLabel = `<strong>Photo received</strong><br><img src="${m.content}" class="tl-img">`;
+          }
+          
+          timelineHTML += `
+            <div class="tl-item">
+              <div class="tl-dot" style="${m.sender === 'staff' ? 'border-color: var(--blue);' : ''}"></div>
+              <div class="tl-content" style="${m.sender === 'staff' ? 'background: rgba(0,122,255,0.05);' : ''}">
+                <div class="tl-time">${m.time}</div>
+                ${mediaLabel}
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      document.getElementById('detailsPane').innerHTML = `
+        <div class="comms-dropdown" id="commsDropdown">
+          <div class="comms-header" onclick="document.getElementById('commsDropdown').classList.toggle('open')">
+            <span>Send Update to Guest</span>
+            <svg viewBox="0 0 20 20" fill="none"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="comms-body">
+            <textarea class="comms-input" id="commsInput" placeholder="Type a message to alert the guest..."></textarea>
+            <button class="btn-send-update" onclick="sendStaffUpdate('${alert.id}')">Send to Guest</button>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn btn-call" onclick="openCallModal('${alert.room}', '1000')">
+            <svg viewBox="0 0 20 20"><path d="M3 5a2 2 0 012-2h1.5a.5.5 0 01.49.39l.8 3.6a.5.5 0 01-.28.56L5.8 8.3a11 11 0 005.9 5.9l.76-1.73a.5.5 0 01.56-.28l3.6.8a.5.5 0 01.39.49V15a2 2 0 01-2 2C7.4 17 3 12.6 3 5z"/></svg>
+            Call Room
+          </button>
+          <button class="btn btn-911" onclick="openCallModal('National Emergency', '112')">
+            <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+            Alert 112
+          </button>
+        </div>
+
+        <div class="detail-section">
+          <h3>Incident Timeline</h3>
+          <div class="timeline">${timelineHTML}</div>
+        </div>
+
+        <div class="detail-section">
+          <h3>Teams Status</h3>
+          <div class="status-item">
+            <div class="status-name">${ICONS.shield} Floor Security</div>
+            <div class="status-badge badge-active">En Route</div>
+          </div>
+          <div class="status-item">
+            <div class="status-name">${ICONS.medical} Medical Staff</div>
+            <div class="status-badge badge-pending">Standing By</div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>Agency Comms</h3>
+          <div class="status-item">
+            <div class="status-name">${ICONS.building} Local Fire Dept</div>
+            <div class="status-badge badge-pending">Notified</div>
+          </div>
+          <div class="status-item">
+            <div class="status-name">${ICONS.building} Police Dept</div>
+            <div class="status-badge badge-pending">Pending</div>
+          </div>
+        </div>
+
+        <button class="btn btn-resolve" onclick="resolveAlert('${alert.id}')">Mark as Resolved</button>
+      `;
+    }
+
+    async function resolveAlert(id) {
+      const btn = document.querySelector('.btn-resolve');
+      if (btn) {
+        btn.className = 'btn btn-resolved';
+        btn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" style="width:18px;height:18px;"><path d="M16 6L8 14l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Resolving...';
+      }
+      try {
+        await fetch(`/api/incidents/${id}/resolve`, { method: 'POST' });
+        setTimeout(() => {
+          alertsData = alertsData.filter(a => a.id !== id);
+          clearEscalation(id);
+          activeAlertId = null;
+          document.getElementById('detailsPane').innerHTML = '<div class="empty-state">Select an alert from the feed to view timeline and dispatch teams.</div>';
+          document.getElementById('detailSubtitle').textContent = 'Select an alert to view details';
+          renderAlerts();
+          updateStats();
+        }, 1200);
+      } catch(e) { console.error(e); }
+    }
+
+    async function sendStaffUpdate(alertId) {
+      const input = document.getElementById('commsInput');
+      const text = input.value.trim();
+      if (!text) return;
+      
+      const mediaUpdate = {
+        sender: 'staff',
+        type: 'text',
+        content: text,
+        time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+      };
+
+      try {
+        await fetch(`/api/incidents/${alertId}/media`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(mediaUpdate)
+        });
+        input.value = '';
+      } catch(e) { console.error(e); }
+    }
+
+    const socket = io();
+
+    socket.on('new_alert', (alert) => {
+      alertsData.push(alert);
+      renderAlerts();
+      updateStats();
+      triggerAlertEffect();
+      startEscalation(alert.id);
+    });
+
+    socket.on('incident_updated', (data) => {
+      const idx = alertsData.findIndex(a => a.id === data.id);
+      if (idx !== -1) {
+        alertsData[idx].media = data.media;
+        if (activeAlertId === data.id) selectAlert(data.id);
+      }
+    });
+
+    socket.on('incident_resolved', (data) => {
+      alertsData = alertsData.filter(a => a.id !== data.id);
+      if (activeAlertId === data.id) {
+        activeAlertId = null;
+        document.getElementById('detailsPane').innerHTML = '<div class="empty-state">Incident was resolved by another staff member.</div>';
+      }
+      renderAlerts();
+      updateStats();
+    });
+
+    socket.on('incident_escalated', (data) => {
+      const idx = alertsData.findIndex(a => a.id === data.id);
+      if (idx !== -1) {
+        alertsData[idx].severity = 'critical';
+        alertsData[idx].escalated = true;
+        renderAlerts();
+        triggerAlertEffect();
+        showToast('ESCALATED: Alert unacknowledged for 60s');
+      }
+    });
+
+    /* AUDIO ALERT + SCREEN FLASH */
+    let sirenInterval = null;
+    let globalAudioCtx = null;
+
+    function initAudio() {
+      if (!globalAudioCtx) {
+        globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (globalAudioCtx.state === 'suspended') {
+        globalAudioCtx.resume();
+      }
+    }
+
+    // Unlock audio on any click (solves browser autoplay blocking)
+    document.body.addEventListener('click', initAudio, { once: true });
+
+    function triggerAlertEffect() {
+      // Start continuous screen flash
+      document.body.classList.add('alert-flash');
+
+      // Clear any existing siren to avoid overlaps
+      if (sirenInterval) clearInterval(sirenInterval);
+
+      // Audio siren using Web Audio API
+      try {
+        initAudio();
+        function beep(freq, start, dur) {
+          const osc = globalAudioCtx.createOscillator();
+          const gain = globalAudioCtx.createGain();
+          osc.connect(gain); gain.connect(globalAudioCtx.destination);
+          osc.frequency.value = freq; osc.type = 'square'; // Harsh square wave for alarm
+          gain.gain.setValueAtTime(0.5, start); // Louder
+          gain.gain.exponentialRampToValueAtTime(0.01, start + dur);
+          osc.start(start); osc.stop(start + dur);
+        }
+        
+        function playSirenCycle() {
+          const now = globalAudioCtx.currentTime;
+          for (let i = 0; i < 3; i++) {
+            beep(880, now + i * 0.4, 0.2);
+            beep(660, now + i * 0.4 + 0.2, 0.2);
+          }
+        }
+        
+        playSirenCycle(); // Play immediately
+        sirenInterval = setInterval(playSirenCycle, 2000); // Repeat every 2s
+      } catch(e) {
+        console.error("Audio playback failed:", e);
+      }
+    }
+
+    function stopAlertEffect() {
+      document.body.classList.remove('alert-flash');
+      if (sirenInterval) {
+        clearInterval(sirenInterval);
+        sirenInterval = null;
+      }
+    }
+
+    /* PRIORITY ESCALATION */
+    let escalationTimers = {};
+
+    function startEscalation(alertId) {
+      if (escalationTimers[alertId]) return;
+      escalationTimers[alertId] = setTimeout(() => {
+        fetch(`/api/incidents/${alertId}/escalate`, { method: 'POST' }).catch(e => console.error(e));
+      }, 60000);
+    }
+
+    function clearEscalation(alertId) {
+      if (escalationTimers[alertId]) {
+        clearTimeout(escalationTimers[alertId]);
+        delete escalationTimers[alertId];
+      }
+    }
+
+    let pendingCallNum = '';
+
+    function openCallModal(name, num) {
+      pendingCallNum = num;
+      document.getElementById('callModalName').textContent = name;
+      document.getElementById('callModalNum').textContent = num;
+      const colors = { '101':'#FF3B30','102':'#007AFF','100':'#636366','112':'#FF9500','1000':'#1C1C1E' };
+      const col = colors[num] || '#1C1C1E';
+      const av = document.getElementById('callAvatar');
+      av.style.background = col + '18';
+      document.getElementById('callAvatarIcon').setAttribute('fill', col);
+      document.getElementById('callModal').classList.add('open');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('open');
+    }
+
+    function confirmCall() {
+      const name = document.getElementById('callModalName').textContent;
+      closeModal('callModal');
+      showToast('Connecting — ' + name);
+      setTimeout(() => { window.location.href = 'tel:' + pendingCallNum; }, 700);
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2700);
+    }
+
+    /* Mobile Tab Switching */
+    function switchMobileTab(idx) {
+      const panels = [document.getElementById('panelAlerts'), document.getElementById('panelMap'), document.getElementById('panelDetails')];
+      const btns = document.querySelectorAll('.nav-btn');
+      panels.forEach(p => p.classList.remove('mobile-active'));
+      btns.forEach(b => b.classList.remove('active'));
+      panels[idx].classList.add('mobile-active');
+      btns[idx].classList.add('active');
+    }
+
+    /* LOGIN / AUTH */
+    function initLogin() {
+      const config = JSON.parse(localStorage.getItem('hotelConfig') || '{}');
+      if (config.hotelName) {
+        document.getElementById('loginHotelName').textContent = config.hotelName;
+        document.getElementById('loginFooter').textContent = 'Powered by SafeAlert';
+      }
+
+      // Check if already logged in
+      if (sessionStorage.getItem('staffLoggedIn') === 'true') {
+        showDashboard();
+      }
+    }
+
+    function attemptLogin() {
+      const user = document.getElementById('loginUser').value.trim();
+      const pass = document.getElementById('loginPass').value;
+      const config = JSON.parse(localStorage.getItem('hotelConfig') || '{}');
+      const creds = config.staffCredentials || [{ username: 'admin', password: 'admin123', name: 'Admin' }];
+
+      const match = creds.find(c => c.username === user && c.password === pass);
+      if (match) {
+        initAudio(); // Unlock audio on successful login click
+        sessionStorage.setItem('staffLoggedIn', 'true');
+        sessionStorage.setItem('staffName', match.name || user);
+        document.getElementById('loginError').style.display = 'none';
+        showDashboard();
+      } else {
+        document.getElementById('loginError').style.display = 'block';
+      }
+    }
+
+    function showDashboard() {
+      document.getElementById('loginScreen').classList.add('hidden');
+      loadAlerts();
+    }
+
+    function logout() {
+      sessionStorage.removeItem('staffLoggedIn');
+      sessionStorage.removeItem('staffName');
+      document.getElementById('loginScreen').classList.remove('hidden');
+      document.getElementById('loginUser').value = '';
+      document.getElementById('loginPass').value = '';
+    }
+
+    initLogin();
+  </script>
+</body>
+</html>

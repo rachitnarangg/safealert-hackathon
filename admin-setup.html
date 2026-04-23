@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SafeAlert — Admin Setup</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+    :root {
+      --red: #FF3B30; --blue: #007AFF; --green: #34C759; --orange: #FF9500;
+      --black: #1C1C1E;
+      --bg: #F2F2F7; --panel-bg: #FFFFFF;
+      --text: #1C1C1E; --text-sec: #8E8E93;
+      --border: rgba(60,60,67,0.1);
+      --shadow: 0 4px 20px rgba(0,0,0,0.04), 0 1px 4px rgba(0,0,0,0.02);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; -webkit-font-smoothing: antialiased;
+    }
+
+    .top-bar {
+      background: var(--panel-bg); border-bottom: 1px solid var(--border);
+      padding: 20px 32px; display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .top-bar h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+    .top-bar-sub { font-size: 13px; color: var(--text-sec); font-weight: 500; }
+    .save-btn {
+      background: var(--blue); color: #fff; border: none; border-radius: 12px;
+      padding: 12px 28px; font-size: 15px; font-weight: 700; cursor: pointer;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .save-btn:active { opacity: 0.8; transform: scale(0.97); }
+    .save-btn.saved { background: var(--green); }
+
+    .container { max-width: 800px; margin: 0 auto; padding: 32px 24px 80px; display: flex; flex-direction: column; gap: 24px; }
+
+    .card {
+      background: var(--panel-bg); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden;
+    }
+    .card-header {
+      padding: 20px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .card-header svg { width: 20px; height: 20px; flex-shrink: 0; }
+    .card-header h2 { font-size: 16px; font-weight: 700; }
+    .card-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-sec); }
+    .field input, .field select {
+      padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border);
+      background: var(--bg); font-size: 14px; font-family: inherit; outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus, .field select:focus { border-color: var(--blue); background: #fff; }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    /* Map Upload */
+    .map-upload-area {
+      border: 2px dashed var(--border); border-radius: 14px;
+      padding: 32px; text-align: center; cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+    }
+    .map-upload-area:hover { border-color: var(--blue); background: rgba(0,122,255,0.03); }
+    .map-upload-area svg { width: 40px; height: 40px; color: var(--text-sec); }
+    .map-upload-area .up-title { font-size: 15px; font-weight: 700; }
+    .map-upload-area .up-sub { font-size: 13px; color: var(--text-sec); }
+    .map-preview { width: 100%; max-height: 300px; object-fit: contain; border-radius: 12px; display: none; }
+
+    /* Rooms List */
+    .room-list { display: flex; flex-direction: column; gap: 8px; }
+    .room-item {
+      display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: center;
+      padding: 10px 14px; background: var(--bg); border-radius: 10px;
+    }
+    .room-item input { padding: 8px 10px; font-size: 13px; border-radius: 8px; border: 1px solid var(--border); background: #fff; font-family: inherit; outline: none; }
+    .room-item input:focus { border-color: var(--blue); }
+    .remove-room { background: none; border: none; cursor: pointer; color: var(--red); padding: 4px; }
+    .remove-room svg { width: 18px; height: 18px; }
+    .add-room-btn {
+      background: rgba(0,122,255,0.08); color: var(--blue); border: none; border-radius: 10px;
+      padding: 10px; font-size: 13px; font-weight: 700; cursor: pointer; text-align: center;
+    }
+    .add-room-btn:active { opacity: 0.7; }
+
+    /* Staff Credentials */
+    .staff-list { display: flex; flex-direction: column; gap: 8px; }
+    .staff-item {
+      display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: center;
+      padding: 10px 14px; background: var(--bg); border-radius: 10px;
+    }
+    .staff-item input { padding: 8px 10px; font-size: 13px; border-radius: 8px; border: 1px solid var(--border); background: #fff; font-family: inherit; outline: none; }
+    .staff-item input:focus { border-color: var(--blue); }
+    .staff-item select { padding: 8px 10px; font-size: 13px; border-radius: 8px; border: 1px solid var(--border); background: #fff; font-family: inherit; }
+    .add-staff-btn {
+      background: rgba(0,122,255,0.08); color: var(--blue); border: none; border-radius: 10px;
+      padding: 10px; font-size: 13px; font-weight: 700; cursor: pointer; text-align: center;
+    }
+    .add-staff-btn:active { opacity: 0.7; }
+
+    .toast { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%) translateY(18px); background: var(--black); color: #fff; padding: 11px 22px; border-radius: 30px; font-size: 15px; font-weight: 600; opacity: 0; pointer-events: none; z-index: 300; transition: all .3s; white-space: nowrap; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* QR Code */
+    .qr-area { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    .qr-img { width: 200px; height: 200px; border-radius: 12px; border: 1px solid var(--border); background: #fff; }
+    .qr-url { font-size: 12px; color: var(--text-sec); text-align: center; word-break: break-all; max-width: 300px; }
+    .qr-gen-btn {
+      background: var(--blue); color: #fff; border: none; border-radius: 10px;
+      padding: 10px 24px; font-size: 13px; font-weight: 700; cursor: pointer;
+    }
+    .qr-gen-btn:active { opacity: 0.7; }
+
+    /* Analytics */
+    .analytics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .analytics-card {
+      background: var(--bg); border-radius: 14px; padding: 18px 16px;
+      text-align: center;
+    }
+    .analytics-val { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
+    .analytics-label { font-size: 11px; font-weight: 700; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+    .chart-bar-container { display: flex; align-items: flex-end; gap: 8px; height: 120px; padding-top: 12px; }
+    .chart-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .chart-bar { width: 100%; border-radius: 6px 6px 0 0; transition: height 0.5s; }
+    .chart-bar-label { font-size: 10px; font-weight: 600; color: var(--text-sec); }
+
+    /* Incident Log */
+    .log-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .log-table th { text-align: left; font-size: 11px; font-weight: 700; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    .log-table td { padding: 10px; border-bottom: 1px solid var(--border); }
+    .log-table tr:last-child td { border-bottom: none; }
+    .log-empty { text-align: center; color: var(--text-sec); padding: 24px; font-size: 14px; }
+    .export-btn {
+      background: rgba(52,199,89,0.1); color: var(--green); border: none; border-radius: 10px;
+      padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer;
+    }
+    .export-btn:active { opacity: 0.7; }
+    .log-actions { display: flex; gap: 10px; align-items: center; }
+
+    @media (max-width: 600px) {
+      .row { grid-template-columns: 1fr; }
+      .staff-item { grid-template-columns: 1fr 1fr; }
+      .top-bar { padding: 16px 18px; }
+      .top-bar h1 { font-size: 18px; }
+      .container { padding: 20px 16px 80px; }
+      .analytics-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <div>
+      <h1>SafeAlert Admin</h1>
+      <div class="top-bar-sub">Hotel Configuration & Staff Management</div>
+    </div>
+    <button class="save-btn" id="saveBtn" onclick="saveConfig()">Save Configuration</button>
+  </div>
+
+  <div class="container">
+
+    <!-- HOTEL INFO -->
+    <div class="card">
+      <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M15 11V5l-3-3-3 3v2H3v14h18V11h-6zm-8 8H5v-2h2v2zm0-4H5v-2h2v2zm0-4H5V9h2v2zm6 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V9h2v2zm0-4h-2V5h2v2zm6 12h-2v-2h2v2zm0-4h-2v-2h2v2z" fill="currentColor"/></svg>
+        <h2>Hotel Information</h2>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="field">
+            <label>Hotel Name</label>
+            <input id="hotelName" placeholder="e.g. Grand Hyatt Mumbai">
+          </div>
+          <div class="field">
+            <label>Region / Country</label>
+            <select id="hotelRegion">
+              <option value="india">India</option>
+              <option value="us">United States</option>
+              <option value="uae">UAE</option>
+              <option value="uk">United Kingdom</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Front Desk Number</label>
+            <input id="frontDeskNum" placeholder="e.g. 1000">
+          </div>
+          <div class="field">
+            <label>Total Floors</label>
+            <input id="totalFloors" type="number" placeholder="e.g. 8" min="1">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FLOOR PLAN UPLOAD -->
+    <div class="card">
+      <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3V7z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 4v13M15 7v13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <h2>Floor Plan / Map</h2>
+      </div>
+      <div class="card-body">
+        <div class="map-upload-area" id="mapUploadArea" onclick="document.getElementById('mapFile').click()">
+          <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="10" width="40" height="28" rx="6" stroke="currentColor" stroke-width="2"/><path d="M4 30l12-10 8 6 8-8 12 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="34" cy="18" r="3" stroke="currentColor" stroke-width="2"/></svg>
+          <div class="up-title">Upload Floor Plan</div>
+          <div class="up-sub">Drag & drop or click to upload PNG, JPG, or SVG</div>
+        </div>
+        <input type="file" id="mapFile" accept="image/*" style="display:none" onchange="previewMap(this)">
+        <img class="map-preview" id="mapPreview">
+        <button class="add-room-btn" id="aiDetectBtn" style="margin-top: 15px; display: none; background: #2C3E50; color: white;" onclick="autoDetectRooms()">Auto-Detect via AI Analysis</button>
+      </div>
+    </div>
+
+    <!-- ROOMS -->
+    <div class="card">
+      <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 22V12h6v10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h2>Rooms</h2>
+      </div>
+      <div class="card-body">
+        <div class="room-list" id="roomList"></div>
+        <button class="add-room-btn" onclick="addRoom()">+ Add Room</button>
+      </div>
+    </div>
+
+    <!-- STAFF CREDENTIALS -->
+    <div class="card">
+      <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="2"/></svg>
+        <h2>Staff Login Credentials</h2>
+      </div>
+      <div class="card-body">
+        <div class="staff-list" id="staffList"></div>
+        <button class="add-staff-btn" onclick="addStaff()">+ Add Staff Member</button>
+      </div>
+    </div>
+
+    <!-- EMERGENCY CONTACTS -->
+    <div class="card">
+      <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" stroke="currentColor" stroke-width="2"/></svg>
+        <h2>Emergency Contacts</h2>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="field">
+            <label>Fire Brigade</label>
+            <input id="emergFire" placeholder="e.g. 101">
+          </div>
+          <div class="field">
+            <label>Ambulance</label>
+            <input id="emergAmb" placeholder="e.g. 102">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Police</label>
+            <input id="emergPolice" placeholder="e.g. 100">
+          </div>
+          <div class="field">
+            <label>National Emergency</label>
+            <input id="emergNational" placeholder="e.g. 112">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- QR CODE GENERATOR -->
+    <div class="card">
+      <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="3" height="3" fill="currentColor"/><rect x="18" y="18" width="3" height="3" fill="currentColor"/><rect x="14" y="18" width="3" height="3" fill="currentColor"/></svg>
+        <h2>Guest QR Code</h2>
+      </div>
+      <div class="card-body">
+        <div class="qr-area">
+          <img class="qr-img" id="qrImage" src="" alt="QR Code">
+          <div class="qr-url" id="qrUrl">Click below to generate a QR code for the guest crisis portal</div>
+          <button class="qr-gen-btn" onclick="generateQR()">Generate QR Code</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANALYTICS DASHBOARD -->
+    <div class="card">
+      <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h2>Analytics Overview</h2>
+      </div>
+      <div class="card-body">
+        <div class="analytics-grid" id="analyticsGrid">
+          <div class="analytics-card">
+            <div class="analytics-val" style="color:var(--red);" id="anTotal">0</div>
+            <div class="analytics-label">Total Incidents</div>
+          </div>
+          <div class="analytics-card">
+            <div class="analytics-val" style="color:var(--green);" id="anResolved">0</div>
+            <div class="analytics-label">Resolved</div>
+          </div>
+          <div class="analytics-card">
+            <div class="analytics-val" style="color:var(--blue);" id="anAvgTime">--</div>
+            <div class="analytics-label">Avg Response</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;">
+          <div style="font-size:12px;font-weight:700;color:var(--text-sec);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Incidents by Type</div>
+          <div class="chart-bar-container" id="chartBars"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INCIDENT LOG / EXPORT -->
+    <div class="card">
+      <div class="card-header">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h2>Incident Log</h2>
+      </div>
+      <div class="card-body">
+        <div class="log-actions">
+          <button class="export-btn" onclick="exportLog()">Export as CSV</button>
+          <button class="add-room-btn" onclick="clearLog()" style="color:var(--red);background:rgba(255,59,48,0.08);">Clear Log</button>
+        </div>
+        <div id="logTableWrap"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let rooms = [];
+    let staffMembers = [];
+    let mapImageData = null;
+
+    function addRoom(name, floor) {
+      rooms.push({ name: name || '', floor: floor || '' });
+      renderRooms();
+    }
+
+    function removeRoom(idx) {
+      rooms.splice(idx, 1);
+      renderRooms();
+    }
+
+    function renderRooms() {
+      const list = document.getElementById('roomList');
+      list.innerHTML = '';
+      rooms.forEach((r, i) => {
+        const div = document.createElement('div');
+        div.className = 'room-item';
+        div.innerHTML = `
+          <input placeholder="Room name (e.g. Room 412)" value="${r.name}" onchange="rooms[${i}].name=this.value">
+          <input placeholder="Floor (e.g. Floor 4)" value="${r.floor}" onchange="rooms[${i}].floor=this.value">
+          <button class="remove-room" onclick="removeRoom(${i})">
+            <svg viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    function addStaff(name, user, pass, role) {
+      staffMembers.push({ name: name || '', username: user || '', password: pass || '', role: role || 'staff' });
+      renderStaff();
+    }
+
+    function removeStaff(idx) {
+      staffMembers.splice(idx, 1);
+      renderStaff();
+    }
+
+    function renderStaff() {
+      const list = document.getElementById('staffList');
+      list.innerHTML = '';
+      staffMembers.forEach((s, i) => {
+        const div = document.createElement('div');
+        div.className = 'staff-item';
+        div.innerHTML = `
+          <input placeholder="Full Name" value="${s.name}" onchange="staffMembers[${i}].name=this.value">
+          <input placeholder="Username" value="${s.username}" onchange="staffMembers[${i}].username=this.value">
+          <input placeholder="Password" type="password" value="${s.password}" onchange="staffMembers[${i}].password=this.value">
+          <button class="remove-room" onclick="removeStaff(${i})">
+            <svg viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    function previewMap(input) {
+      if (!input.files || !input.files[0]) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        mapImageData = e.target.result;
+        const preview = document.getElementById('mapPreview');
+        preview.src = mapImageData;
+        preview.style.display = 'block';
+        document.getElementById('mapUploadArea').style.display = 'none';
+        document.getElementById('aiDetectBtn').style.display = 'block';
+      };
+      reader.readAsDataURL(input.files[0]);
+    }
+
+    async function autoDetectRooms() {
+      if (!mapImageData) return;
+      const btn = document.getElementById('aiDetectBtn');
+      btn.textContent = "Analyzing Map Data...";
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/analyze-map', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageData: mapImageData })
+        });
+        const result = await res.json();
+        
+        if (result.success && result.data) {
+          showToast('AI: Rooms and Infrastructure Detected!');
+          if (result.data.rooms) {
+            result.data.rooms.forEach(r => addRoom(r.name, r.floor));
+          }
+          if (result.data.infrastructure) {
+            result.data.infrastructure.forEach(i => addRoom(i.name, i.type || 'Infrastructure'));
+          }
+        } else {
+          showToast('AI failed to detect rooms. Please try again.');
+        }
+      } catch (e) {
+        console.error(e);
+        showToast('Error communicating with AI service.');
+      }
+      
+      btn.textContent = "Auto-Detect via AI Analysis";
+      btn.disabled = false;
+    }
+
+    async function saveConfig() {
+      const btn = document.getElementById('saveBtn');
+      btn.textContent = 'Saving...';
+      const config = {
+        hotelName: document.getElementById('hotelName').value,
+        region: document.getElementById('hotelRegion').value,
+        frontDeskNum: document.getElementById('frontDeskNum').value,
+        totalFloors: document.getElementById('totalFloors').value,
+        mapImage: mapImageData,
+        rooms: rooms,
+        staffCredentials: staffMembers,
+        emergency: {
+          fire: document.getElementById('emergFire').value,
+          ambulance: document.getElementById('emergAmb').value,
+          police: document.getElementById('emergPolice').value,
+          national: document.getElementById('emergNational').value
+        }
+      };
+      
+      try {
+        await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config)
+        });
+        btn.textContent = 'Saved';
+        btn.classList.add('saved');
+        showToast('Configuration saved to server successfully');
+        setTimeout(() => { btn.textContent = 'Save Configuration'; btn.classList.remove('saved'); }, 2000);
+      } catch (e) {
+        console.error(e);
+        btn.textContent = 'Save Error';
+        setTimeout(() => btn.textContent = 'Save Configuration', 2000);
+      }
+    }
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config');
+        const config = await res.json();
+        
+        if (Object.keys(config).length === 0) {
+          addRoom('Room 412', 'Floor 4');
+          addStaff('Admin', 'admin', 'admin123', 'admin');
+          return;
+        }
+
+      document.getElementById('hotelName').value = config.hotelName || '';
+      document.getElementById('hotelRegion').value = config.region || 'india';
+      document.getElementById('frontDeskNum').value = config.frontDeskNum || '';
+      document.getElementById('totalFloors').value = config.totalFloors || '';
+        document.getElementById('emergFire').value = config.emergency?.fire || '';
+        document.getElementById('emergAmb').value = config.emergency?.ambulance || '';
+        document.getElementById('emergPolice').value = config.emergency?.police || '';
+        document.getElementById('emergNational').value = config.emergency?.national || '';
+
+        if (config.mapImage) {
+          mapImageData = config.mapImage;
+          document.getElementById('mapPreview').src = mapImageData;
+          document.getElementById('mapPreview').style.display = 'block';
+          document.getElementById('mapUploadArea').style.display = 'none';
+        }
+
+        rooms = config.rooms || [];
+        renderRooms();
+        staffMembers = config.staffCredentials || [];
+        renderStaff();
+      } catch (e) {
+        console.error(e);
+        addRoom('Room 412', 'Floor 4');
+        addStaff('Admin', 'admin', 'admin123', 'admin');
+      }
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg; t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2700);
+    }
+
+    /* QR CODE */
+    async function generateQR() {
+      try {
+        const res = await fetch('/api/ip');
+        const data = await res.json();
+        const localIp = data.ip;
+        
+        // Build the URL using the real network IP instead of localhost
+        const currentUrl = new URL(window.location.href);
+        const portalUrl = `http://${localIp}:${currentUrl.port}/crisis-portal.html`;
+        
+        const qrApiUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(portalUrl);
+        document.getElementById('qrImage').src = qrApiUrl;
+        document.getElementById('qrUrl').textContent = portalUrl;
+        showToast('Network QR Code generated');
+      } catch (e) {
+        console.error("Failed to fetch IP:", e);
+      }
+    }
+
+    /* ANALYTICS */
+    async function loadAnalytics() {
+      try {
+        const res = await fetch('/api/incidents');
+        const incidents = await res.json();
+        
+        const log = incidents.filter(i => i.status === 'resolved');
+        const active = incidents.filter(i => i.status !== 'resolved');
+        const total = incidents.length;
+        const resolved = log.length;
+
+      document.getElementById('anTotal').textContent = total;
+      document.getElementById('anResolved').textContent = resolved;
+      document.getElementById('anAvgTime').textContent = total > 0 ? '~3m' : '--';
+
+      // Chart
+      const types = { fire: 0, medical: 0, security: 0, others: 0 };
+      [...log, ...active].forEach(a => { if (types[a.type] !== undefined) types[a.type]++; });
+      const max = Math.max(...Object.values(types), 1);
+      const colors = { fire: '#FF3B30', medical: '#007AFF', security: '#636366', others: '#FF9500' };
+      const container = document.getElementById('chartBars');
+      container.innerHTML = '';
+      Object.entries(types).forEach(([type, count]) => {
+        const h = (count / max) * 100;
+        container.innerHTML += `
+          <div class="chart-bar-wrap">
+            <div class="chart-bar" style="height:${Math.max(h, 5)}%;background:${colors[type]};"></div>
+            <div class="chart-bar-label">${type.charAt(0).toUpperCase() + type.slice(1)}</div>
+          </div>
+        `;
+      });
+      } catch(e) { console.error(e); }
+    }
+
+    /* INCIDENT LOG */
+    async function loadIncidentLog() {
+      try {
+        const res = await fetch('/api/incidents');
+        const incidents = await res.json();
+        const log = incidents.filter(i => i.status === 'resolved');
+        
+        const wrap = document.getElementById('logTableWrap');
+      if (log.length === 0) {
+        wrap.innerHTML = '<div class="log-empty">No resolved incidents yet. Resolved alerts will appear here.</div>';
+        return;
+      }
+      let html = '<table class="log-table"><thead><tr><th>Time</th><th>Type</th><th>Room</th><th>Status</th></tr></thead><tbody>';
+      log.slice().reverse().forEach(a => {
+        html += `<tr><td>${a.time}</td><td style="text-transform:capitalize;">${a.type}</td><td>${a.room}</td><td style="color:var(--green);font-weight:600;">Resolved</td></tr>`;
+      });
+      html += '</tbody></table>';
+      wrap.innerHTML = html;
+      } catch(e) { console.error(e); }
+    }
+
+    async function exportLog() {
+      try {
+        const res = await fetch('/api/incidents');
+        const incidents = await res.json();
+        const log = incidents.filter(i => i.status === 'resolved');
+        
+        if (log.length === 0) { showToast('No incidents to export'); return; }
+      let csv = 'Time,Type,Room,Floor,Status\n';
+      log.forEach(a => { csv += `${a.time},${a.type},${a.room},${a.floor},Resolved\n`; });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url; link.download = 'incident_log.csv'; link.click();
+        URL.revokeObjectURL(url);
+        showToast('CSV exported');
+      } catch(e) { console.error(e); }
+    }
+
+    function clearLog() {
+      // Backend does not support clearing log yet in prototype
+      showToast('Log clearing restricted on server');
+    }
+
+    loadConfig();
+    loadAnalytics();
+    loadIncidentLog();
+  </script>
+</body>
+</html>

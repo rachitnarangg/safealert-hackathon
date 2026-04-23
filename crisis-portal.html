@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SafeAlert — Crisis Response Portal</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+
+  :root {
+    --red: #FF3B30; --blue: #007AFF; --silver: #8E8E93;
+    --black: #1C1C1E; --green: #34C759;
+    --bg: #FFFFFF; --bg2: #F2F2F7; --bg3: #E5E5EA;
+    --text: #1C1C1E; --text2: #3A3A3C; --text3: #636366; --text4: #AEAEB2;
+    --border: rgba(60,60,67,0.13);
+    --shadow: 0 4px 30px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05);
+    --shadow-lg: 0 20px 60px rgba(0,0,0,0.14), 0 4px 16px rgba(0,0,0,0.08);
+  }
+
+  html, body {
+    height: 100%; width: 100%; overflow: hidden;
+    font-family: -apple-system, 'Inter', BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    background: var(--bg); color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .screen {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transform: translateY(22px);
+    transition: opacity 0.4s cubic-bezier(.4,0,.2,1), transform 0.4s cubic-bezier(.4,0,.2,1);
+    overflow: hidden;
+  }
+  .screen.active { opacity: 1; pointer-events: all; transform: translateY(0); }
+  .screen.exit { opacity: 0; transform: translateY(-22px); }
+
+  /* ══ SCREEN 1: SOS ══ */
+  #screen-sos { background: var(--bg); }
+
+  .sos-ambient {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 75% 65% at 50% 50%, rgba(255,59,48,0.07) 0%, transparent 68%);
+    animation: ambPulse 4s ease-in-out infinite;
+  }
+  @keyframes ambPulse { 0%,100%{opacity:.6;transform:scale(1)} 50%{opacity:1;transform:scale(1.06)} }
+
+  .sos-content { display: flex; flex-direction: column; align-items: center; z-index: 2; text-align: center; padding: 24px; }
+
+  .brand-tag { font-size: 11px; font-weight: 600; letter-spacing: .18em; color: var(--text4); text-transform: uppercase; margin-bottom: 44px; }
+
+  .sos-ring-wrap {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    width: clamp(280px, 48vw, 360px); height: clamp(280px, 48vw, 360px); margin-bottom: 44px;
+  }
+  .sos-ring { position: absolute; border-radius: 50%; border: 1.5px solid var(--red); animation: ringExpand 2.8s ease-out infinite; }
+  .sos-ring:nth-child(1) { inset: 0; opacity:.07; animation-delay:0s; }
+  .sos-ring:nth-child(2) { inset: 12%; opacity:.13; animation-delay:.65s; }
+  .sos-ring:nth-child(3) { inset: 24%; opacity:.20; animation-delay:1.3s; }
+  @keyframes ringExpand { 0%{transform:scale(.85);opacity:0} 40%{opacity:.22} 100%{transform:scale(1.12);opacity:0} }
+
+  /* BIGGER SOS BUTTON */
+  .sos-btn {
+    width: clamp(180px, 30vw, 220px);
+    height: clamp(180px, 30vw, 220px);
+    border-radius: 50%; background: var(--red); border: none; cursor: pointer; z-index: 3;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+    transition: transform 0.18s cubic-bezier(.4,0,.2,1);
+    animation: btnPulse 2.8s ease-in-out infinite;
+  }
+  @keyframes btnPulse {
+    0%,100%{box-shadow:0 0 0 0 rgba(255,59,48,.35),0 10px 40px rgba(255,59,48,.3)}
+    50%{box-shadow:0 0 0 28px rgba(255,59,48,0),0 10px 52px rgba(255,59,48,.55)}
+  }
+  .sos-btn:active { transform: scale(0.93); }
+  .sos-btn::before { content:''; position:absolute; inset:0; border-radius:50%; background:radial-gradient(circle at 35% 30%, rgba(255,255,255,.24) 0%, transparent 62%); }
+
+  .sos-label { font-size: clamp(48px, 8vw, 64px); font-weight: 900; color: #fff; letter-spacing: .07em; line-height:1; text-shadow: 0 3px 14px rgba(0,0,0,.22); }
+  .sos-sub { font-size: clamp(10px, 1.4vw, 13px); font-weight: 500; color: rgba(255,255,255,.8); letter-spacing: .14em; text-transform: uppercase; margin-top: 7px; }
+
+  .sos-footer-title { font-size: clamp(18px, 3vw, 24px); font-weight: 700; color: var(--text); margin-bottom: 8px; }
+  .sos-footer-sub { font-size: clamp(13px, 2vw, 16px); color: var(--text3); line-height: 1.55; max-width: 340px; }
+
+  /* ══ SCREEN 2: TYPE SELECTION ══ */
+  #screen-type { background: var(--bg); justify-content: flex-start; align-items: stretch; }
+
+  .type-header { padding: clamp(44px,8vh,64px) clamp(20px,4vw,40px) clamp(16px,2.5vh,24px); flex-shrink:0; }
+  .type-header-back { font-size: 17px; color: var(--red); cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 4px; margin-bottom: clamp(12px,2vh,20px); width: fit-content; }
+  .type-header h1 { font-size: clamp(22px, 4vw, 32px); font-weight: 800; line-height: 1.1; }
+  .type-header p { font-size: clamp(13px, 1.8vw, 16px); color: var(--text3); margin-top: 5px; }
+
+  /* RESPONSIVE GRID — 2-col always, scales with viewport */
+  .type-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(12px, 2vw, 22px);
+    padding: 0 clamp(20px,4vw,40px) clamp(20px,4vh,40px);
+    flex: 1;
+    max-width: 900px; margin: 0 auto; width: 100%;
+    align-content: stretch;
+  }
+
+  .type-btn {
+    border: none; border-radius: clamp(16px, 2.5vw, 26px); cursor: pointer; padding: 0;
+    display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end;
+    position: relative; overflow: hidden;
+    min-height: clamp(120px, 18vh, 200px);
+    transition: transform 0.2s cubic-bezier(.4,0,.2,1), box-shadow 0.2s;
+    box-shadow: var(--shadow);
+  }
+  .type-btn:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+  .type-btn:active { transform: scale(0.96) !important; }
+
+  .type-icon-wrap {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 56px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .type-icon-wrap svg { width: clamp(40px, 6vw, 58px); height: clamp(40px, 6vw, 58px); filter: drop-shadow(0 3px 10px rgba(0,0,0,.2)); }
+
+  .type-btn-label { width:100%; padding: clamp(10px,1.5vw,16px) clamp(14px,2vw,22px) 4px; font-size: clamp(15px, 2.2vw, 21px); font-weight: 800; position: relative; z-index:2; }
+  .type-btn-sub { font-size: clamp(9px,1.1vw,12px); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; padding: 0 clamp(14px,2vw,22px) clamp(10px,1.5vw,16px); opacity: .75; position: relative; z-index:2; }
+
+  .btn-fire { background: linear-gradient(148deg,#FF6B35 0%,#FF3B30 100%); color:#fff; }
+  .btn-fire::before { content:''; position:absolute; inset:0; background:radial-gradient(circle at 72% 18%,rgba(255,215,100,.28) 0%,transparent 60%); }
+  .btn-medical { background: linear-gradient(148deg,#34AADC 0%,#007AFF 100%); color:#fff; }
+  .btn-medical::before { content:''; position:absolute; inset:0; background:radial-gradient(circle at 72% 18%,rgba(210,245,255,.22) 0%,transparent 60%); }
+  .btn-security { background: linear-gradient(148deg,#C7C7CC 0%,#636366 100%); color:#fff; }
+  .btn-security::before { content:''; position:absolute; inset:0; background:radial-gradient(circle at 72% 18%,rgba(255,255,255,.22) 0%,transparent 60%); }
+  .btn-others { background: linear-gradient(148deg,#48484A 0%,#1C1C1E 100%); color:#fff; }
+  .btn-others::before { content:''; position:absolute; inset:0; background:radial-gradient(circle at 72% 18%,rgba(255,255,255,.1) 0%,transparent 60%); }
+
+  /* ══ MODALS (shared base) ══ */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.52);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    display: flex; align-items: flex-end; justify-content: center;
+    opacity: 0; pointer-events: none; z-index: 100;
+    transition: opacity .3s;
+  }
+  .modal-overlay.open { opacity:1; pointer-events:all; }
+  .modal-sheet {
+    background: var(--bg); border-radius: 28px 28px 0 0;
+    padding: 24px 24px 44px; width: 100%; max-width: 500px;
+    transform: translateY(100%);
+    transition: transform 0.44s cubic-bezier(.4,0,.2,1);
+  }
+  .modal-overlay.open .modal-sheet { transform: translateY(0); }
+  .modal-drag { width: 40px; height: 4px; background: var(--bg3); border-radius: 2px; margin: 0 auto 22px; }
+
+  /* Emergency modal */
+  .modal-icon-wrap { width: 76px; height: 76px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
+  .modal-icon-wrap svg { width: 36px; height: 36px; }
+  .modal-title { font-size: 23px; font-weight: 800; text-align: center; margin-bottom: 6px; }
+  .modal-room { font-size: 14px; color: var(--text3); text-align: center; margin-bottom: 4px; }
+  .modal-desc { font-size: 14px; color: var(--text3); text-align: center; margin-bottom: 26px; line-height: 1.55; }
+  .modal-confirm-btn { width:100%; padding:17px; border:none; border-radius:16px; font-size:17px; font-weight:700; cursor:pointer; margin-bottom:12px; transition:transform .15s,opacity .15s; }
+  .modal-confirm-btn:active { transform:scale(0.97); opacity:.85; }
+  .modal-cancel-btn { width:100%; padding:17px; border:1.5px solid var(--border); border-radius:16px; font-size:17px; font-weight:600; cursor:pointer; background:var(--bg); color:var(--text3); transition:background .15s; }
+  .modal-cancel-btn:active { background: var(--bg2); }
+
+  /* iPhone call modal */
+  .call-avatar { width: 90px; height: 90px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+  .call-avatar svg { width: 44px; height: 44px; }
+  .call-modal-name { font-size: 27px; font-weight: 800; text-align: center; letter-spacing: -.01em; }
+  .call-modal-num { font-size: 16px; color: var(--text3); text-align: center; margin: 4px 0 28px; }
+  .call-action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .call-action-btn { border:none; border-radius:18px; padding:18px 10px 14px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:9px; transition:transform .15s,opacity .15s; font-size:15px; font-weight:700; }
+  .call-action-btn:active { transform:scale(0.95); opacity:.85; }
+  .call-action-btn svg { width: 28px; height: 28px; }
+  .call-btn-cancel { background: #E5E5EA; color: var(--red); }
+  .call-btn-call { background: var(--green); color: #fff; }
+
+  /* ══ SCREEN 3: ALERT SENT ══ */
+  #screen-sent { background:var(--bg); justify-content:flex-start; align-items:stretch; }
+
+  .ticker-wrap { width:100%; background:var(--black); overflow:hidden; height:44px; display:flex; align-items:center; flex-shrink:0; }
+  .ticker-label { font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#FF3B30; padding:0 14px; white-space:nowrap; flex-shrink:0; border-right:1px solid rgba(255,255,255,.1); height:100%; display:flex; align-items:center; gap:6px; background:var(--black); z-index:2; }
+  .ticker-label svg { width:13px; height:13px; }
+  .ticker-track { display:flex; align-items:center; animation:ticker 38s linear infinite; white-space:nowrap; }
+  .ticker-track span { font-size:12px; color:rgba(255,255,255,.82); padding:0 18px; }
+  .ticker-sep { color:rgba(255,255,255,.25)!important; padding:0 2px!important; font-size:10px!important; }
+  @keyframes ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+
+  .sent-topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 18px 8px; flex-shrink:0; }
+  .sent-room-badge { background:var(--bg2); border-radius:20px; padding:7px 14px; font-size:13px; font-weight:600; color:var(--text2); display:flex; align-items:center; gap:7px; }
+  .room-dot { width:7px; height:7px; border-radius:50%; background:var(--green); flex-shrink:0; }
+  .call-desk-btn { background:var(--bg); border:1.5px solid var(--border); border-radius:20px; padding:7px 14px; font-size:13px; font-weight:600; color:var(--blue); cursor:pointer; display:flex; align-items:center; gap:7px; transition:background .15s; }
+  .call-desk-btn:active { background:var(--bg2); }
+  .call-desk-btn svg { width:14px; height:14px; }
+
+  .sent-hero { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 28px 12px; }
+
+  .check-ring { width:112px; height:112px; border-radius:50%; background:var(--green); display:flex; align-items:center; justify-content:center; margin-bottom:22px; animation:checkPop .6s cubic-bezier(.4,0,.2,1) both, checkGlow 2.5s .6s ease-in-out infinite; }
+  @keyframes checkPop { 0%{transform:scale(0);opacity:0} 60%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+  @keyframes checkGlow { 0%,100%{box-shadow:0 0 0 0 rgba(52,199,89,.25)} 50%{box-shadow:0 0 0 20px rgba(52,199,89,0)} }
+
+  .check-svg { width:52px; height:52px; }
+  .check-path { fill:none; stroke:#fff; stroke-width:4.5; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:60; stroke-dashoffset:60; animation:drawCheck .5s .4s cubic-bezier(.4,0,.2,1) forwards; }
+  @keyframes drawCheck { to{stroke-dashoffset:0} }
+
+  .sent-title { font-size:27px; font-weight:800; text-align:center; margin-bottom:8px; }
+  .sent-subtitle { font-size:31px; font-weight:900; text-align:center; letter-spacing:-.01em; line-height:1.1; }
+  .sent-subtitle em { font-style:normal; color:var(--green); }
+  .sent-type-badge { margin-top:14px; padding:8px 20px; border-radius:30px; font-size:14px; font-weight:700; letter-spacing:.04em; display:flex; align-items:center; gap:8px; }
+  .sent-type-badge svg { width:15px; height:15px; }
+  .sent-est { margin-top:8px; font-size:14px; color:var(--text3); }
+  .sent-est strong { color:var(--text2); font-weight:600; }
+
+  .sent-actions { padding:0 18px 10px; flex-shrink:0; }
+  .action-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .action-card { background:var(--bg2); border-radius:18px; padding:17px 15px; cursor:pointer; border:none; text-align:left; transition:transform .18s,background .15s; display:flex; flex-direction:column; gap:9px; }
+  .action-card:active { transform:scale(0.96); background:var(--bg3); }
+  .action-card svg { width:24px; height:24px; }
+  .action-card-label { font-size:14px; font-weight:700; color:var(--text); line-height:1.2; }
+  .action-card-sub { font-size:12px; color:var(--text3); }
+
+  .helplines-wrap { padding:0 18px 14px; flex-shrink:0; }
+  .helplines-title { font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--text4); margin-bottom:10px; padding-left:2px; }
+  .helplines-row { display:flex; gap:10px; overflow-x:auto; scrollbar-width:none; }
+  .helplines-row::-webkit-scrollbar { display:none; }
+  .helpline-pill { background:var(--bg2); border:none; border-radius:30px; padding:10px 16px; font-size:13px; font-weight:600; color:var(--text2); cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:8px; transition:background .15s; flex-shrink:0; }
+  .helpline-pill:active { background:var(--bg3); }
+  .helpline-pill svg { width:15px; height:15px; flex-shrink:0; }
+  .pip { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+  /* ══ SCREEN 4: MAP ══ */
+  #screen-map { background:var(--bg); justify-content:flex-start; align-items:stretch; }
+
+  .sub-header { padding:clamp(44px,8vh,56px) clamp(18px,3.5vw,28px) 14px; display:flex; align-items:center; gap:14px; flex-shrink:0; }
+  .back-btn { width:36px; height:36px; border-radius:50%; background:var(--bg2); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .back-btn svg { width:18px; height:18px; }
+  .sub-header-text h2 { font-size:21px; font-weight:800; }
+  .sub-header-text p { font-size:13px; color:var(--text3); margin-top:2px; }
+
+  .ai-badge { margin:0 clamp(18px,3.5vw,28px) 14px; padding:11px 15px; border-radius:14px; background:rgba(0,122,255,.06); border:1px solid rgba(0,122,255,.18); font-size:13px; color:#0066CC; display:flex; align-items:center; gap:10px; flex-shrink:0; }
+  .ai-badge svg { width:20px; height:20px; flex-shrink:0; }
+  .ai-badge-text strong { font-weight:700; display:block; font-size:13px; }
+  .ai-badge-text span { font-size:12px; }
+
+  .map-container { flex:1; margin:0 clamp(18px,3.5vw,28px); background:var(--bg2); border-radius:20px; overflow:hidden; min-height:220px; }
+  .floor-plan { width:100%; height:100%; }
+
+  .map-legend { margin:10px clamp(18px,3.5vw,28px) 0; display:flex; gap:16px; flex-shrink:0; flex-wrap:wrap; }
+  .legend-item { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text3); font-weight:500; }
+  .legend-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+
+  .route-stats { margin:10px clamp(18px,3.5vw,28px) 20px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; flex-shrink:0; }
+  .r-stat { background:var(--bg2); border-radius:14px; padding:13px 12px; text-align:center; }
+  .r-stat-val { font-size:19px; font-weight:800; }
+  .r-stat-key { font-size:11px; color:var(--text3); font-weight:500; margin-top:2px; }
+
+  /* ══ SCREEN 5: MEDIA ══ */
+  #screen-media { background:var(--bg); justify-content:flex-start; align-items:stretch; }
+
+  .media-tabs { display:flex; padding:0 clamp(18px,3.5vw,28px); gap:4px; margin-bottom:18px; flex-shrink:0; }
+  .media-tab { flex:1; padding:10px 8px; border-radius:12px; border:none; background:var(--bg2); font-size:14px; font-weight:600; color:var(--text3); cursor:pointer; transition:all .2s; display:flex; align-items:center; justify-content:center; gap:6px; }
+  .media-tab svg { width:15px; height:15px; }
+  .media-tab.active { background:var(--text); color:#fff; }
+
+  .media-panel { flex:1; padding:0 clamp(18px,3.5vw,28px); display:none; flex-direction:column; gap:14px; }
+  .media-panel.active { display:flex; }
+
+  .voice-area { background:var(--bg2); border-radius:20px; padding:28px 22px; display:flex; flex-direction:column; align-items:center; gap:14px; }
+  .voice-timer { font-size:28px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .voice-wave { display:flex; align-items:center; gap:3px; height:32px; }
+  .voice-bar { width:3px; background:var(--blue); border-radius:2px; animation:waveAnim .8s ease-in-out infinite alternate; }
+  @keyframes waveAnim { 0%{height:6px} 100%{height:28px} }
+  .voice-btn { width:88px; height:88px; border-radius:50%; border:none; background:var(--red); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:transform .15s; box-shadow:0 4px 20px rgba(255,59,48,.35); }
+  .voice-btn svg { width:38px; height:38px; }
+  .voice-btn:active { transform:scale(0.91); }
+  .voice-btn.recording { animation:vPulse 1s ease-in-out infinite; }
+  @keyframes vPulse { 0%,100%{box-shadow:0 4px 20px rgba(255,59,48,.3)} 50%{box-shadow:0 4px 34px rgba(255,59,48,.72)} }
+  .voice-status { font-size:15px; font-weight:600; color:var(--text2); }
+
+  .emergency-textarea { flex:1; min-height:140px; padding:15px; border-radius:16px; border:1.5px solid var(--border); background:var(--bg2); font-size:16px; color:var(--text); font-family:inherit; resize:none; outline:none; line-height:1.5; }
+  .emergency-textarea:focus { border-color:var(--blue); background:var(--bg); }
+  .emergency-textarea::placeholder { color:var(--text4); }
+
+  .image-area { background:var(--bg2); border-radius:20px; padding:26px 22px; display:flex; flex-direction:column; align-items:center; gap:14px; border:2px dashed var(--border); cursor:pointer; }
+  .image-area svg { width:44px; height:44px; }
+  .img-title { font-size:17px; font-weight:700; }
+  .img-sub { font-size:14px; color:var(--text3); text-align:center; line-height:1.45; }
+  .img-pick-btn { padding:11px 22px; border-radius:13px; border:none; background:var(--blue); color:#fff; font-size:15px; font-weight:700; cursor:pointer; }
+  .img-pick-btn:active { opacity:.8; }
+  .img-preview { width:100%; height:160px; object-fit:cover; border-radius:14px; display:none; }
+
+  .send-btn { margin:auto clamp(18px,3.5vw,28px) 28px; padding:18px; border-radius:16px; border:none; font-size:17px; font-weight:700; cursor:pointer; transition:opacity .15s,transform .15s; display:flex; align-items:center; justify-content:center; gap:9px; flex-shrink:0; width:calc(100% - clamp(36px,7vw,56px)); }
+  .send-btn svg { width:20px; height:20px; }
+  .send-btn:active { opacity:.85; transform:scale(0.98); }
+
+  /* ══ TOAST ══ */
+  .toast { position:fixed; bottom:96px; left:50%; transform:translateX(-50%) translateY(18px); background:var(--black); color:#fff; padding:11px 22px; border-radius:30px; font-size:15px; font-weight:600; opacity:0; pointer-events:none; z-index:300; transition:all .3s; white-space:nowrap; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ══ LIVE CHAT WIDGET ══ */
+  .chat-fab {
+    position: fixed; bottom: 24px; right: 24px; z-index: 500;
+    width: 56px; height: 56px; border-radius: 50%; border: none;
+    background: var(--blue); color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 24px rgba(0,122,255,0.35);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .chat-fab:active { transform: scale(0.9); }
+  .chat-fab svg { width: 26px; height: 26px; }
+  .chat-badge {
+    position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px;
+    background: var(--red); color: #fff; border-radius: 10px;
+    font-size: 11px; font-weight: 800; display: none;
+    align-items: center; justify-content: center; padding: 0 5px;
+    border: 2px solid #fff;
+  }
+
+  .chat-box {
+    position: fixed; bottom: 92px; right: 24px; z-index: 500;
+    width: 320px; max-height: 440px;
+    background: var(--bg); border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08);
+    display: none; flex-direction: column;
+    overflow: hidden;
+    animation: chatSlideUp 0.3s cubic-bezier(0.4,0,0.2,1) forwards;
+  }
+  .chat-box.open { display: flex; }
+  @keyframes chatSlideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+  .chat-header {
+    padding: 16px 18px; background: var(--blue); color: #fff;
+    display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+  }
+  .chat-header-left { display: flex; align-items: center; gap: 10px; }
+  .chat-header-left svg { width: 20px; height: 20px; }
+  .chat-header-title { font-size: 15px; font-weight: 700; }
+  .chat-header-sub { font-size: 11px; opacity: 0.8; }
+  .chat-close { background: none; border: none; color: #fff; cursor: pointer; padding: 4px; }
+  .chat-close svg { width: 18px; height: 18px; }
+
+  .chat-messages {
+    flex: 1; overflow-y: auto; padding: 16px; display: flex;
+    flex-direction: column; gap: 10px; min-height: 200px;
+  }
+  .chat-messages::-webkit-scrollbar { display: none; }
+
+  .chat-bubble {
+    max-width: 85%; padding: 10px 14px; border-radius: 16px;
+    font-size: 13px; line-height: 1.4; word-break: break-word;
+  }
+  .chat-bubble.staff {
+    background: #E5E5EA; color: var(--text); align-self: flex-start;
+    border-bottom-left-radius: 4px;
+  }
+  .chat-bubble.guest {
+    background: var(--blue); color: #fff; align-self: flex-end;
+    border-bottom-right-radius: 4px;
+  }
+  .chat-bubble-time { font-size: 10px; opacity: 0.6; margin-top: 4px; }
+  .chat-bubble.staff .chat-bubble-time { text-align: left; }
+  .chat-bubble.guest .chat-bubble-time { text-align: right; }
+
+  .chat-input-row {
+    display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border);
+    background: var(--bg); flex-shrink: 0;
+  }
+  .chat-input {
+    flex: 1; padding: 10px 14px; border-radius: 20px; border: 1px solid var(--border);
+    background: #FFFFFF; font-size: 13px; font-family: inherit; outline: none;
+  }
+  .chat-input:focus { border-color: var(--blue); }
+  .chat-send-btn {
+    width: 36px; height: 36px; border-radius: 50%; border: none;
+    background: var(--blue); color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .chat-send-btn:active { opacity: 0.8; }
+  .chat-send-btn svg { width: 16px; height: 16px; }
+
+  /* RESPONSIVE CHAT WIDGET */
+  @media (max-width: 480px) {
+    .chat-fab { bottom: 18px; right: 18px; width: 50px; height: 50px; }
+    .chat-fab svg { width: 22px; height: 22px; }
+    .chat-box {
+      bottom: 0; right: 0; left: 0;
+      width: 100%; max-height: 75vh;
+      border-radius: 20px 20px 0 0;
+    }
+    .chat-messages { min-height: 160px; }
+    .chat-input { font-size: 16px; } /* prevent iOS zoom */
+  }
+
+  /* TOOLBAR: Language + Accessibility */
+  .portal-toolbar {
+    position: absolute; top: 16px; left: 16px; right: 16px; z-index: 10;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .lang-select {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 7px 12px; font-size: 12px; font-weight: 600; font-family: inherit;
+    color: var(--text2); cursor: pointer; outline: none;
+    -webkit-appearance: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23636366' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center; padding-right: 26px;
+  }
+
+</style>
+<script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+
+<!-- ══ SCREEN 1: SOS ══ -->
+<div class="screen active" id="screen-sos">
+  <div class="portal-toolbar">
+    <select class="lang-select" id="langSelect" onchange="switchLang(this.value)">
+      <option value="en">English</option>
+      <option value="hi">Hindi</option>
+      <option value="es">Spanish</option>
+      <option value="ar">Arabic</option>
+    </select>
+  </div>
+  <div class="sos-ambient"></div>
+  <div class="sos-content">
+    <div class="brand-tag" data-i18n="brand">SafeAlert  ·  Crisis Response Portal</div>
+    <div class="sos-ring-wrap">
+      <div class="sos-ring"></div>
+      <div class="sos-ring"></div>
+      <div class="sos-ring"></div>
+      <button class="sos-btn" onclick="showTypeScreen()" aria-label="Activate SOS">
+        <div class="sos-label">SOS</div>
+        <div class="sos-sub" data-i18n="pressAlert">Press to Alert</div>
+      </button>
+    </div>
+    <div class="sos-footer-title" data-i18n="emergResp">Emergency Response</div>
+    <div class="sos-footer-sub" data-i18n="tapButton">Tap the button to immediately alert our crisis response team</div>
+  </div>
+</div>
+
+<!-- ══ SCREEN 2: EMERGENCY TYPE ══ -->
+<div class="screen" id="screen-type">
+  <div class="type-header">
+    <div class="type-header-back" onclick="back('screen-sos')">&#8249;&nbsp; Back</div>
+    <h1 data-i18n="whatEmerg">What is your emergency?</h1>
+    <p data-i18n="selectCat">Select the category to dispatch the right response team immediately.</p>
+  </div>
+
+  <div class="type-grid">
+
+    <!-- FIRE — Flame SVG -->
+    <button class="type-btn btn-fire" onclick="openEmergencyModal('fire')">
+      <div class="type-icon-wrap">
+        <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M28 6C28 6 20 18 20 27C20 30.9 23.1 34 27 34C30.9 34 34 30.9 34 27C34 22 30 14 30 14C30 14 37 22 37 32C37 40.8 33 46 28 46C20.3 46 14 39.2 14 31C14 21 21 11 28 6Z" fill="rgba(255,255,255,0.96)"/>
+          <path d="M23 31C23 31 24.5 36 28 38C31.5 36 33 31 33 31" fill="rgba(255,220,100,0.6)"/>
+          <circle cx="28" cy="38" r="5" fill="rgba(255,220,100,0.5)"/>
+        </svg>
+      </div>
+      <div class="type-btn-label">Fire</div>
+      <div class="type-btn-sub">Immediate Dispatch</div>
+    </button>
+
+    <!-- MEDICAL — Cross SVG -->
+    <button class="type-btn btn-medical" onclick="openEmergencyModal('medical')">
+      <div class="type-icon-wrap">
+        <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="22" y="8" width="12" height="40" rx="6" fill="rgba(255,255,255,0.96)"/>
+          <rect x="8" y="22" width="40" height="12" rx="6" fill="rgba(255,255,255,0.96)"/>
+        </svg>
+      </div>
+      <div class="type-btn-label">Medical</div>
+      <div class="type-btn-sub">First Aid &amp; EMS</div>
+    </button>
+
+    <!-- SECURITY — Shield SVG -->
+    <button class="type-btn btn-security" onclick="openEmergencyModal('security')">
+      <div class="type-icon-wrap">
+        <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M28 7L10 14V27C10 38 18 47 28 50C38 47 46 38 46 27V14L28 7Z" fill="rgba(255,255,255,0.96)"/>
+          <path d="M20 28L24.5 32.5L36 21" stroke="rgba(100,100,110,0.7)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="type-btn-label">Security</div>
+      <div class="type-btn-sub">Threat &amp; Safety</div>
+    </button>
+
+    <!-- OTHERS — Warning triangle SVG -->
+    <button class="type-btn btn-others" onclick="openEmergencyModal('others')">
+      <div class="type-icon-wrap">
+        <svg viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M28 8L51 46H5L28 8Z" fill="rgba(255,255,255,0.94)" stroke="rgba(255,255,255,0.3)" stroke-width="0.5" stroke-linejoin="round"/>
+          <rect x="25.5" y="20" width="5" height="14" rx="2.5" fill="rgba(70,70,80,0.65)"/>
+          <circle cx="28" cy="39" r="3" fill="rgba(70,70,80,0.65)"/>
+        </svg>
+      </div>
+      <div class="type-btn-label">Others</div>
+      <div class="type-btn-sub">General Emergency</div>
+    </button>
+
+  </div>
+</div>
+
+<!-- ══ SCREEN 3: ALERT SENT ══ -->
+<div class="screen" id="screen-sent">
+
+  <div class="ticker-wrap">
+    <div class="ticker-label">
+      <svg viewBox="0 0 20 20" fill="none"><path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm0 4v4l3 3" stroke="#FF3B30" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      AI Advice
+    </div>
+    <div style="overflow:hidden;flex:1;position:relative;">
+      <div class="ticker-track" id="tickerTrack">
+        <span>Stay calm and keep breathing steadily</span><span class="ticker-sep">·</span>
+        <span>Do not use elevators — use stairwells only</span><span class="ticker-sep">·</span>
+        <span>Stay low if there is smoke in the corridor</span><span class="ticker-sep">·</span>
+        <span>Keep your door closed to slow fire spread</span><span class="ticker-sep">·</span>
+        <span>Signal from windows if you are trapped</span><span class="ticker-sep">·</span>
+        <span>Help has been dispatched to your location</span><span class="ticker-sep">·</span>
+        <span>Do not re-enter the building once evacuated</span><span class="ticker-sep">·</span>
+        <span>Stay calm and keep breathing steadily</span><span class="ticker-sep">·</span>
+        <span>Do not use elevators — use stairwells only</span><span class="ticker-sep">·</span>
+        <span>Stay low if there is smoke in the corridor</span><span class="ticker-sep">·</span>
+        <span>Keep your door closed to slow fire spread</span><span class="ticker-sep">·</span>
+        <span>Signal from windows if you are trapped</span><span class="ticker-sep">·</span>
+        <span>Help has been dispatched to your location</span><span class="ticker-sep">·</span>
+        <span>Do not re-enter the building once evacuated</span><span class="ticker-sep">·</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="sent-topbar">
+    <div class="sent-room-badge">
+      <div class="room-dot"></div>
+      Room 412 &nbsp;·&nbsp; Floor 4
+    </div>
+    <button class="call-desk-btn" onclick="openCallModal('Front Desk','1000')">
+      <svg viewBox="0 0 20 20" fill="none"><path d="M3 5a2 2 0 012-2h1.5a.5.5 0 01.49.39l.8 3.6a.5.5 0 01-.28.56L5.8 8.3a11 11 0 005.9 5.9l.76-1.73a.5.5 0 01.56-.28l3.6.8a.5.5 0 01.39.49V15a2 2 0 01-2 2C7.4 17 3 12.6 3 5z" fill="#007AFF"/></svg>
+      Front Desk
+    </button>
+  </div>
+
+  <div class="sent-hero">
+    <div class="check-ring">
+      <svg class="check-svg" viewBox="0 0 50 50"><path class="check-path" d="M11 26L21 36L39 16"/></svg>
+    </div>
+    <div class="sent-title">Alert Sent</div>
+    <div class="sent-subtitle">Help is on<br><em>the way.</em></div>
+    <div class="sent-type-badge" id="sentTypeBadge">
+      <svg id="badgeIcon" viewBox="0 0 16 16" fill="none"></svg>
+      <span id="sentTypeBadgeText">Fire Emergency</span>
+    </div>
+    <div class="sent-est">Estimated response: <strong>2–4 minutes</strong></div>
+  </div>
+
+  <div class="sent-actions">
+    <div class="action-row">
+      <button class="action-card" onclick="goTo('screen-media')">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="9" y="2" width="6" height="11" rx="3" stroke="#1C1C1E" stroke-width="1.8"/><path d="M5 11a7 7 0 0014 0M12 18v4M9 22h6" stroke="#1C1C1E" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <div class="action-card-label">Send Update</div>
+        <div class="action-card-sub">Voice, text or photo</div>
+      </button>
+      <button class="action-card" onclick="goTo('screen-map')">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3V7z" stroke="#1C1C1E" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 4v13M15 7v13" stroke="#1C1C1E" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <div class="action-card-label">Evacuation Map</div>
+        <div class="action-card-sub">AI optimised route</div>
+      </button>
+    </div>
+  </div>
+
+  <div class="helplines-wrap">
+    <div class="helplines-title">Government Helplines</div>
+    <div class="helplines-row">
+      <button class="helpline-pill" onclick="openCallModal('Fire Brigade','101')">
+        <div class="pip" style="background:#FF3B30"></div>
+        <svg viewBox="0 0 18 18" fill="none"><path d="M9 2C9 2 5 8 5 12.5A4 4 0 0013 12.5C13 8 9 2 9 2Z" fill="#FF3B30"/><circle cx="9" cy="12.5" r="1.5" fill="#fff"/></svg>
+        Fire &nbsp;101
+      </button>
+      <button class="helpline-pill" onclick="openCallModal('Ambulance','102')">
+        <div class="pip" style="background:#007AFF"></div>
+        <svg viewBox="0 0 18 18" fill="none"><rect x="7" y="3" width="4" height="12" rx="2" fill="#007AFF"/><rect x="3" y="7" width="12" height="4" rx="2" fill="#007AFF"/></svg>
+        Ambulance &nbsp;102
+      </button>
+      <button class="helpline-pill" onclick="openCallModal('Police','100')">
+        <div class="pip" style="background:#636366"></div>
+        <svg viewBox="0 0 18 18" fill="none"><path d="M9 2L3 4.5V10C3 14 6 17 9 18C12 17 15 14 15 10V4.5L9 2Z" fill="#636366"/><path d="M7 10l1.5 1.5L12 8" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Police &nbsp;100
+      </button>
+      <button class="helpline-pill" onclick="openCallModal('National Emergency','112')">
+        <div class="pip" style="background:#FF9500"></div>
+        <svg viewBox="0 0 18 18" fill="none"><path d="M9 2l1.7 5H17l-5 3.6 1.9 5.5L9 13l-4.9 3.1 1.9-5.5L1 7h6.3L9 2z" fill="#FF9500"/></svg>
+        National &nbsp;112
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ SCREEN 4: MAP ══ -->
+<div class="screen" id="screen-map">
+  <div class="sub-header">
+    <button class="back-btn" onclick="back('screen-sent')">
+      <svg viewBox="0 0 20 20" fill="none"><path d="M12 4l-6 6 6 6" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="sub-header-text"><h2>Evacuation Route</h2><p>AI-optimised path · Floor 4</p></div>
+  </div>
+  <div class="ai-badge">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6L12 2z" fill="#007AFF"/></svg>
+    <div class="ai-badge-text">
+      <strong>AI Route Active</strong>
+      <span>Fastest exit via Stairwell B — east wing smoke corridor avoided</span>
+    </div>
+  </div>
+  <div class="map-container">
+    <svg class="floor-plan" viewBox="0 0 340 260" xmlns="http://www.w3.org/2000/svg">
+      <rect x="10" y="10" width="320" height="240" rx="8" fill="#FFFFFF" stroke="#E5E5EA" stroke-width="1.5"/>
+      <rect x="20" y="20" width="60" height="50" rx="4" fill="#F2F2F7" stroke="#D1D1D6" stroke-width="1"/>
+      <text x="50" y="50" text-anchor="middle" font-size="9" fill="#636366" font-family="sans-serif">401</text>
+      <rect x="85" y="20" width="60" height="50" rx="4" fill="#FFF3F0" stroke="#FFCCCC" stroke-width="1.5"/>
+      <text x="115" y="47" text-anchor="middle" font-size="9" fill="#C0392B" font-family="sans-serif" font-weight="600">412</text>
+      <text x="115" y="58" text-anchor="middle" font-size="7" fill="#C0392B" font-family="sans-serif">YOU</text>
+      <rect x="150" y="20" width="60" height="50" rx="4" fill="#F2F2F7" stroke="#D1D1D6" stroke-width="1"/>
+      <text x="180" y="50" text-anchor="middle" font-size="9" fill="#636366" font-family="sans-serif">413</text>
+      <rect x="215" y="20" width="60" height="50" rx="4" fill="#F2F2F7" stroke="#D1D1D6" stroke-width="1"/>
+      <text x="245" y="50" text-anchor="middle" font-size="9" fill="#636366" font-family="sans-serif">414</text>
+      <rect x="20" y="180" width="60" height="60" rx="4" fill="#F2F2F7" stroke="#D1D1D6" stroke-width="1"/>
+      <text x="50" y="214" text-anchor="middle" font-size="9" fill="#636366" font-family="sans-serif">421</text>
+      <rect x="85" y="180" width="60" height="60" rx="4" fill="#F2F2F7" stroke="#D1D1D6" stroke-width="1"/>
+      <text x="115" y="214" text-anchor="middle" font-size="9" fill="#636366" font-family="sans-serif">422</text>
+      <rect x="150" y="180" width="60" height="60" rx="4" fill="#F2F2F7" stroke="#D1D1D6" stroke-width="1"/>
+      <text x="180" y="214" text-anchor="middle" font-size="9" fill="#636366" font-family="sans-serif">423</text>
+      <rect x="280" y="20" width="42" height="70" rx="4" fill="#E8F5E9" stroke="#A5D6A7" stroke-width="1.5"/>
+      <text x="301" y="48" text-anchor="middle" font-size="8" fill="#2E7D32" font-family="sans-serif" font-weight="600">STAIR</text>
+      <text x="301" y="60" text-anchor="middle" font-size="8" fill="#2E7D32" font-family="sans-serif" font-weight="600">B ↓</text>
+      <rect x="280" y="100" width="42" height="55" rx="4" fill="#E3F2FD" stroke="#90CAF9" stroke-width="1.5"/>
+      <text x="301" y="124" text-anchor="middle" font-size="7.5" fill="#1565C0" font-family="sans-serif" font-weight="600">EMER.</text>
+      <text x="301" y="136" text-anchor="middle" font-size="7.5" fill="#1565C0" font-family="sans-serif" font-weight="600">ROOM</text>
+      <rect x="280" y="165" width="42" height="75" rx="4" fill="#F3E5F5" stroke="#CE93D8" stroke-width="1.5"/>
+      <text x="301" y="206" text-anchor="middle" font-size="8" fill="#6A1B9A" font-family="sans-serif" font-weight="600">GARDEN</text>
+      <rect x="20" y="80" width="255" height="95" fill="#FAFAFA" stroke="#E5E5EA" stroke-width="0.5"/>
+      <text x="148" y="133" text-anchor="middle" font-size="8.5" fill="#AEAEB2" font-family="sans-serif">Corridor — Floor 4</text>
+      
+      <!-- Dynamic Danger Zones -->
+      <g id="dangerZonesLayer"></g>
+
+      <!-- Dynamic Evacuation Path -->
+      <path id="dynamicRoutePath" d="" fill="none" stroke="#34C759" stroke-width="4" stroke-linecap="round" stroke-dasharray="8 5">
+        <animate attributeName="stroke-dashoffset" from="100" to="0" dur="2s" repeatCount="indefinite"/>
+      </path>
+
+      <circle cx="115" cy="45" r="7" fill="#FF3B30"><animate attributeName="r" values="7;9;7" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0.6;1" dur="2s" repeatCount="indefinite"/></circle>
+      <text x="115" y="49" text-anchor="middle" font-size="7" fill="#fff" font-family="sans-serif" font-weight="700">YOU</text>
+      <circle cx="301" cy="55" r="8" fill="#34C759"/>
+      <text x="301" y="59" text-anchor="middle" font-size="7.5" fill="#fff" font-family="sans-serif" font-weight="700">EXIT</text>
+    </svg>
+  </div>
+  <div class="map-legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#FF3B30"></div>Your location</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#34C759"></div>AI route</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#CC6600"></div>Avoid</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#1565C0"></div>Safe zone</div>
+  </div>
+  <div class="route-stats">
+    <div class="r-stat"><div class="r-stat-val">42m</div><div class="r-stat-key">Distance</div></div>
+    <div class="r-stat"><div class="r-stat-val">~50s</div><div class="r-stat-key">Est. Time</div></div>
+    <div class="r-stat"><div class="r-stat-val">Stair B</div><div class="r-stat-key">Via</div></div>
+  </div>
+</div>
+
+<!-- ══ SCREEN: RESOLVED ══ -->
+<div class="screen" id="screen-resolved">
+  <div class="sent-hero" style="height:100vh; justify-content:center; padding: 24px;">
+    <div class="check-ring" style="border-color: var(--green);">
+      <svg class="check-svg" viewBox="0 0 50 50" style="stroke: var(--green);"><path class="check-path" d="M11 26L21 36L39 16"/></svg>
+    </div>
+    <div class="sent-title" style="color:var(--green); margin-top:24px;">Incident Resolved</div>
+    <div class="sent-subtitle" style="font-size:16px; margin-top:12px; color:var(--text3);">The emergency team has marked this incident as resolved. Returning to home screen shortly...</div>
+  </div>
+</div>
+
+<!-- ══ SCREEN 5: MEDIA ══ -->
+<div class="screen" id="screen-media">
+  <div class="sub-header">
+    <button class="back-btn" onclick="back('screen-sent')">
+      <svg viewBox="0 0 20 20" fill="none"><path d="M12 4l-6 6 6 6" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="sub-header-text"><h2>Send Update</h2><p>Describe your emergency in detail</p></div>
+  </div>
+  <div class="media-tabs">
+    <button class="media-tab active" onclick="switchTab('voice')">
+      <svg viewBox="0 0 20 20" fill="none"><rect x="7" y="2" width="6" height="9" rx="3" stroke="currentColor" stroke-width="1.5"/><path d="M4 10a6 6 0 0012 0M10 16v3M8 19h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Voice
+    </button>
+    <button class="media-tab" onclick="switchTab('text')">
+      <svg viewBox="0 0 20 20" fill="none"><path d="M3 5a2 2 0 012-2h10a2 2 0 012 2v7a2 2 0 01-2 2H7l-4 3V5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>Text
+    </button>
+    <button class="media-tab" onclick="switchTab('image')">
+      <svg viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><circle cx="7" cy="9" r="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M2 14l4-4 3 3 3-3 6 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Image
+    </button>
+  </div>
+
+  <div class="media-panel active" id="panel-voice">
+    <div class="voice-area">
+      <div class="voice-timer" id="voiceTimer">0:00</div>
+      <div class="voice-wave" id="voiceWave" style="visibility:hidden;">
+        <div class="voice-bar" style="animation-delay:0s"></div>
+        <div class="voice-bar" style="animation-delay:.15s"></div>
+        <div class="voice-bar" style="animation-delay:.3s"></div>
+        <div class="voice-bar" style="animation-delay:.45s"></div>
+        <div class="voice-bar" style="animation-delay:.6s"></div>
+        <div class="voice-bar" style="animation-delay:.75s"></div>
+        <div class="voice-bar" style="animation-delay:.9s"></div>
+      </div>
+      <button class="voice-btn" id="voiceBtn" onclick="toggleRecording()">
+        <svg id="voiceIcon" viewBox="0 0 40 40" fill="none"><rect x="14" y="4" width="12" height="20" rx="6" fill="#fff"/><path d="M7 20a13 13 0 0026 0M20 33v5M15 38h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg>
+      </button>
+      <div class="voice-status" id="voiceStatus">Tap to record</div>
+    </div>
+  </div>
+
+  <div class="media-panel" id="panel-text">
+    <textarea class="emergency-textarea" placeholder="Describe what is happening — location, number of people affected, any visible hazards…"></textarea>
+  </div>
+
+  <div class="media-panel" id="panel-image">
+    <div class="image-area" id="imageArea" onclick="document.getElementById('fileInput').click()">
+      <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="10" width="40" height="28" rx="6" stroke="#AEAEB2" stroke-width="2"/><circle cx="24" cy="24" r="7" stroke="#AEAEB2" stroke-width="2"/><circle cx="36" cy="16" r="2.5" fill="#AEAEB2"/></svg>
+      <div class="img-title">Attach a Photo</div>
+      <div class="img-sub">Take a photo or choose from your gallery to help responders assess the scene</div>
+      <button class="img-pick-btn" onclick="event.stopPropagation();document.getElementById('fileInput').click()">Choose Photo</button>
+      <input type="file" id="fileInput" accept="image/*" capture="environment" style="display:none" onchange="previewImage(this)">
+    </div>
+    <img class="img-preview" id="imgPreview" alt="Preview">
+  </div>
+
+  <button class="send-btn" style="background:var(--red);color:#fff;" onclick="sendMedia()">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Send to Emergency Room
+  </button>
+</div>
+
+<!-- ══ EMERGENCY MODAL ══ -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-sheet">
+    <div class="modal-drag"></div>
+    <div class="modal-icon-wrap" id="modalIconWrap">
+      <svg id="modalIconSvg" viewBox="0 0 48 48" fill="none"></svg>
+    </div>
+    <div class="modal-title" id="modalTitle">Fire Emergency</div>
+    <div class="modal-room">Room 412 · Floor 4</div>
+    <div class="modal-desc">This will immediately alert the emergency response team and dispatch help to your location.</div>
+    <button class="modal-confirm-btn" id="modalConfirmBtn" onclick="confirmAlert()" style="background:var(--red);color:#fff;">Confirm — Send Alert</button>
+    <button class="modal-cancel-btn" onclick="closeModal('modalOverlay')">Cancel</button>
+  </div>
+</div>
+
+<!-- ══ CALL CONFIRMATION MODAL (iPhone-style) ══ -->
+<div class="modal-overlay" id="callModal">
+  <div class="modal-sheet" style="padding-bottom:36px;">
+    <div class="modal-drag"></div>
+    <div class="call-avatar" id="callAvatar">
+      <svg viewBox="0 0 48 48" fill="none"><path d="M8 12a4 4 0 014-4h3a1 1 0 011 .78l2 8a1 1 0 01-.57 1.12l-3 1.34a22 22 0 0010 10l1.34-3a1 1 0 011.12-.57l8 2a1 1 0 01.78 1V34a4 4 0 01-4 4C18 38 8 28 8 16z" id="callAvatarIcon" fill="#8E8E93"/></svg>
+    </div>
+    <div class="call-modal-name" id="callModalName">Front Desk</div>
+    <div class="call-modal-num" id="callModalNum">1000</div>
+    <div class="call-action-row">
+      <button class="call-action-btn call-btn-cancel" onclick="closeModal('callModal')">
+        <svg viewBox="0 0 28 28" fill="none"><line x1="5" y1="5" x2="23" y2="23" stroke="#FF3B30" stroke-width="2.5" stroke-linecap="round"/><line x1="23" y1="5" x2="5" y2="23" stroke="#FF3B30" stroke-width="2.5" stroke-linecap="round"/></svg>
+        Cancel
+      </button>
+      <button class="call-action-btn call-btn-call" onclick="confirmCall()">
+        <svg viewBox="0 0 28 28" fill="none"><path d="M5 9a3 3 0 013-3h2a1 1 0 011 .78l1.2 5.3a1 1 0 01-.56.8l-2.2 1.1a15 15 0 007.57 7.57l1.1-2.2a1 1 0 01.8-.56l5.3 1.2a1 1 0 01.78 1V22a3 3 0 01-3 3C11 25 5 19 5 11z" fill="#fff"/></svg>
+        Call
+      </button>
+    </div>
+  </div>
+</div>
+
+<button class="chat-fab" id="chatFab" onclick="toggleChat()">
+  <svg viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <div class="chat-badge" id="chatBadge">0</div>
+</button>
+
+<div class="chat-box" id="chatBox">
+  <div class="chat-header">
+    <div class="chat-header-left">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" fill="rgba(255,255,255,0.3)"/></svg>
+      <div>
+        <div class="chat-header-title">Live Support</div>
+        <div class="chat-header-sub">Emergency Response Team</div>
+      </div>
+    </div>
+    <button class="chat-close" onclick="toggleChat()">
+      <svg viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="chat-messages" id="chatMessages">
+    <div class="chat-bubble staff">
+      Your alert has been received. A response team is being dispatched.
+      <div class="chat-bubble-time">System</div>
+    </div>
+  </div>
+  <div class="chat-input-row">
+    <input class="chat-input" id="chatInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter')chatSend()">
+    <button class="chat-send-btn" onclick="chatSend()">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let currentType = 'fire';
+  let isRecording = false;
+  let recInterval = null;
+  let recSeconds = 0;
+  let pendingCallNum = '';
+  let lastMediaCount = 0;
+
+  /* MULTI-LANGUAGE */
+  const i18n = {
+    en: { brand: 'SafeAlert  \u00b7  Crisis Response Portal', pressAlert: 'Press to Alert', emergResp: 'Emergency Response', tapButton: 'Tap the button to immediately alert our crisis response team', whatEmerg: 'What is your emergency?', selectCat: 'Select the category to dispatch the right response team immediately.' },
+    hi: { brand: 'SafeAlert  \u00b7  \u0938\u0902\u0915\u099f \u092a\u094d\u0930\u0924\u093f\u0915\u094d\u0930\u093f\u092f\u093e \u092a\u094b\u0930\u094d\u099f\u0932', pressAlert: '\u0905\u0932\u0930\u094d\u099f \u0915\u0930\u0928\u0947 \u0915\u0947 \u0932\u093f\u090f \u0926\u092c\u093e\u090f\u0902', emergResp: '\u0906\u092a\u093e\u0924\u0915\u093e\u0932\u0940\u0928 \u092a\u094d\u0930\u0924\u093f\u0915\u094d\u0930\u093f\u092f\u093e', tapButton: '\u0939\u092e\u093e\u0930\u0940 \u0938\u0902\u0915\u099f \u092a\u094d\u0930\u0924\u093f\u0915\u094d\u0930\u093f\u092f\u093e \u091f\u0940\u092e \u0915\u094b \u0924\u0941\u0930\u0902\u0924 \u0938\u0942\u091a\u093f\u0924 \u0915\u0930\u0928\u0947 \u0915\u0947 \u0932\u093f\u090f \u092c\u091f\u0928 \u0926\u092c\u093e\u090f\u0902', whatEmerg: '\u0906\u092a\u0915\u0940 \u0906\u092a\u093e\u0924\u0915\u093e\u0932\u0940\u0928 \u0938\u094d\u0925\u093f\u0924\u093f \u0915\u094d\u092f\u093e \u0939\u0948?', selectCat: '\u0938\u0939\u0940 \u092a\u094d\u0930\u0924\u093f\u0915\u094d\u0930\u093f\u092f\u093e \u091f\u0940\u092e \u092d\u0947\u091c\u0928\u0947 \u0915\u0947 \u0932\u093f\u090f \u0936\u094d\u0930\u0947\u0923\u0940 \u091a\u0941\u0928\u0947\u0902\u0964' },
+    es: { brand: 'SafeAlert  \u00b7  Portal de Respuesta de Crisis', pressAlert: 'Presione para alertar', emergResp: 'Respuesta de emergencia', tapButton: 'Toque el bot\u00f3n para alertar inmediatamente a nuestro equipo de respuesta', whatEmerg: '\u00bfCu\u00e1l es su emergencia?', selectCat: 'Seleccione la categor\u00eda para enviar al equipo de respuesta correcto.' },
+    ar: { brand: 'SafeAlert  \u00b7  \u0628\u0648\u0627\u0628\u0629 \u0627\u0644\u0627\u0633\u062a\u062c\u0627\u0628\u0629 \u0644\u0644\u0623\u0632\u0645\u0627\u062a', pressAlert: '\u0627\u0636\u063a\u0637 \u0644\u0644\u062a\u0646\u0628\u064a\u0647', emergResp: '\u0627\u0633\u062a\u062c\u0627\u0628\u0629 \u0637\u0648\u0627\u0631\u0626', tapButton: '\u0627\u0636\u063a\u0637 \u0639\u0644\u0649 \u0627\u0644\u0632\u0631 \u0644\u062a\u0646\u0628\u064a\u0647 \u0641\u0631\u064a\u0642 \u0627\u0644\u0627\u0633\u062a\u062c\u0627\u0628\u0629 \u0644\u0644\u0623\u0632\u0645\u0627\u062a \u0641\u0648\u0631\u0627\u064b', whatEmerg: '\u0645\u0627 \u0647\u064a \u062d\u0627\u0644\u0629 \u0627\u0644\u0637\u0648\u0627\u0631\u0626 \u0627\u0644\u062e\u0627\u0635\u0629 \u0628\u0643\u061f', selectCat: '\u062d\u062f\u062f \u0627\u0644\u0641\u0626\u0629 \u0644\u0625\u0631\u0633\u0627\u0644 \u0641\u0631\u064a\u0642 \u0627\u0644\u0627\u0633\u062a\u062c\u0627\u0628\u0629 \u0627\u0644\u0635\u062d\u064a\u062d.' }
+  };
+
+  function switchLang(lang) {
+    const strings = i18n[lang];
+    if (!strings) return;
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (strings[key]) el.textContent = strings[key];
+    });
+    document.documentElement.lang = lang;
+    if (lang === 'ar') document.body.style.direction = 'rtl';
+    else document.body.style.direction = 'ltr';
+  }
+
+  const types = {
+    fire:     { label:'Fire Emergency',    color:'#FF3B30', iconBg:'rgba(255,59,48,0.1)',   advice:'Stay low under smoke · Do not use elevators · Seal door gaps · Signal from windows if trapped · Await fire brigade clearance' },
+    medical:  { label:'Medical Emergency', color:'#007AFF', iconBg:'rgba(0,122,255,0.1)',   advice:'Stay still and calm · Do not move if injured · Apply firm pressure to wounds · Clear airway if unconscious · Call out to alert others' },
+    security: { label:'Security Alert',    color:'#636366', iconBg:'rgba(99,99,102,0.1)',   advice:'Lock and barricade your door · Stay silent · Move away from windows · Do not open until police clear · Keep phone on silent' },
+    others:   { label:'General Emergency', color:'#FF9500', iconBg:'rgba(255,149,0,0.1)',   advice:'Move away from hazards · Stay with others if possible · Follow all staff instructions · Stay on the line with emergency services' }
+  };
+
+  const MODAL_ICONS = {
+    fire:     `<path d="M24 4C24 4 17 16 17 25C17 29.1 20.3 32.5 24.5 32.5C28.7 32.5 32 29.1 32 25C32 20 28 13 28 13C28 13 34 20 34 29C34 38 30 44 24 44C16.3 44 10 37.3 10 29C10 19 17 9 24 4Z" fill="#fff"/>`,
+    medical:  `<rect x="20" y="8" width="8" height="32" rx="4" fill="#fff"/><rect x="8" y="20" width="32" height="8" rx="4" fill="#fff"/>`,
+    security: `<path d="M24 6L8 12V24C8 33.4 15 41.7 24 44C33 41.7 40 33.4 40 24V12L24 6Z" fill="#fff"/><path d="M17 24L21 28L31 18" stroke="rgba(100,100,110,0.6)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>`,
+    others:   `<path d="M24 6L47 44H1L24 6Z" fill="#fff"/><rect x="21" y="19" width="6" height="13" rx="3" fill="rgba(80,80,90,0.6)"/><circle cx="24" cy="37" r="3.5" fill="rgba(80,80,90,0.6)"/>`
+  };
+
+  function goTo(id) {
+    const cur = document.querySelector('.screen.active');
+    if (cur) { cur.classList.add('exit'); setTimeout(() => cur.classList.remove('active','exit'), 420); }
+    setTimeout(() => document.getElementById(id).classList.add('active'), 140);
+  }
+  function back(id) { goTo(id); }
+
+  function showTypeScreen() {
+    const btn = document.querySelector('.sos-btn');
+    btn.style.transform = 'scale(0.88)';
+    setTimeout(() => { btn.style.transform = ''; }, 160);
+    setTimeout(() => goTo('screen-type'), 90);
+  }
+
+  function openEmergencyModal(type) {
+    currentType = type;
+    const t = types[type];
+    const wrap = document.getElementById('modalIconWrap');
+    wrap.style.background = t.iconBg;
+    document.getElementById('modalIconSvg').innerHTML = MODAL_ICONS[type];
+    document.getElementById('modalTitle').textContent = t.label;
+    document.getElementById('modalConfirmBtn').style.background = t.color;
+    document.getElementById('modalOverlay').classList.add('open');
+  }
+
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+  function confirmAlert() {
+    closeModal('modalOverlay');
+    const t = types[currentType];
+    const badge = document.getElementById('sentTypeBadge');
+    badge.style.background = t.iconBg;
+    badge.style.color = t.color;
+    document.getElementById('sentTypeBadgeText').textContent = t.label;
+
+    const track = document.getElementById('tickerTrack');
+    const advices = t.advice.split(' · ');
+    let html = '';
+    for (let i = 0; i < 3; i++) { advices.forEach(a => { html += `<span>${a}</span><span class="ticker-sep">·</span>`; }); }
+    track.innerHTML = html;
+
+    // --- BACKEND API INTEGRATION & OFFLINE SMS FALLBACK ---
+    const newAlert = {
+      id: 'alert_' + Date.now(),
+      type: currentType,
+      time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+      room: 'Room 412',
+      floor: 'Floor 4',
+      severity: currentType === 'fire' || currentType === 'medical' ? 'high' : 'medium',
+      status: 'active',
+      media: []
+    };
+    
+    const TWILIO_NUMBER = '+1234567890'; // Replace with actual Twilio SMS webhook number
+    
+    if (!navigator.onLine) {
+      showToast('Offline Mode: Redirecting to SMS Fallback...');
+      setTimeout(() => {
+        window.location.href = `sms:${TWILIO_NUMBER}?body=${encodeURIComponent(JSON.stringify(newAlert))}`;
+      }, 1500);
+    } else {
+      fetch('/api/incidents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAlert)
+      }).catch(e => {
+        console.error('Failed to send alert:', e);
+        showToast('Network Error: Redirecting to SMS Fallback...');
+        setTimeout(() => {
+          window.location.href = `sms:${TWILIO_NUMBER}?body=${encodeURIComponent(JSON.stringify(newAlert))}`;
+        }, 1500);
+      });
+    }
+    
+    localStorage.setItem('currentAlertId', newAlert.id);
+    lastMediaCount = 0;
+    // --------------------------------
+
+    goTo('screen-sent');
+  }
+
+  /* ── iPhone-style Call Confirmation ── */
+  function openCallModal(name, num) {
+    pendingCallNum = num;
+    document.getElementById('callModalName').textContent = name;
+    document.getElementById('callModalNum').textContent = num;
+    const colors = { '101':'#FF3B30','102':'#007AFF','100':'#636366','112':'#FF9500','1000':'#1C1C1E' };
+    const col = colors[num] || '#1C1C1E';
+    const av = document.getElementById('callAvatar');
+    av.style.background = col + '18';
+    document.getElementById('callAvatarIcon').setAttribute('fill', col);
+    document.getElementById('callModal').classList.add('open');
+  }
+
+  function confirmCall() {
+    const name = document.getElementById('callModalName').textContent;
+    closeModal('callModal');
+    showToast('Connecting — ' + name);
+    setTimeout(() => { window.location.href = 'tel:' + pendingCallNum; }, 700);
+  }
+
+  /* ── Media ── */
+  function switchTab(tab) {
+    document.querySelectorAll('.media-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.media-panel').forEach(p => p.classList.remove('active'));
+    ['voice','text','image'].forEach((t, i) => { if (t === tab) { document.querySelectorAll('.media-tab')[i].classList.add('active'); document.getElementById('panel-'+t).classList.add('active'); } });
+  }
+
+  const MIC_SVG  = `<svg id="voiceIcon" viewBox="0 0 40 40" fill="none"><rect x="14" y="4" width="12" height="20" rx="6" fill="#fff"/><path d="M7 20a13 13 0 0026 0M20 33v5M15 38h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg>`;
+  const STOP_SVG = `<svg id="voiceIcon" viewBox="0 0 40 40" fill="none"><rect x="11" y="11" width="18" height="18" rx="4" fill="#fff"/></svg>`;
+
+  function toggleRecording() {
+    isRecording = !isRecording;
+    const btn = document.getElementById('voiceBtn');
+    if (isRecording) {
+      btn.classList.add('recording'); btn.innerHTML = STOP_SVG;
+      document.getElementById('voiceStatus').textContent = 'Recording…';
+      document.getElementById('voiceWave').style.visibility = 'visible';
+      recSeconds = 0;
+      recInterval = setInterval(() => {
+        recSeconds++;
+        const m = Math.floor(recSeconds/60), s = recSeconds%60;
+        document.getElementById('voiceTimer').textContent = m+':'+String(s).padStart(2,'0');
+      }, 1000);
+    } else {
+      btn.classList.remove('recording'); btn.innerHTML = MIC_SVG;
+      document.getElementById('voiceStatus').textContent = 'Recording saved — tap Send';
+      document.getElementById('voiceWave').style.visibility = 'hidden';
+      clearInterval(recInterval);
+    }
+  }
+
+  function previewImage(input) {
+    if (!input.files || !input.files[0]) return;
+    const r = new FileReader();
+    r.onload = e => {
+      const p = document.getElementById('imgPreview');
+      p.src = e.target.result; p.style.display = 'block';
+      document.getElementById('imageArea').style.display = 'none';
+    };
+    r.readAsDataURL(input.files[0]);
+  }
+
+  function sendMedia() {
+    // --- LOCALSTORAGE INTEGRATION ---
+    const alertId = localStorage.getItem('currentAlertId');
+    if (alertId) {
+      const existingAlerts = JSON.parse(localStorage.getItem('crisisAlerts')) || [];
+      const alertIndex = existingAlerts.findIndex(a => a.id === alertId);
+      if (alertIndex !== -1) {
+        const activeTab = document.querySelector('.media-tab.active').textContent.trim();
+        let mediaData = { time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) };
+        if (activeTab.includes('Voice')) {
+          mediaData.type = 'voice';
+          mediaData.content = document.getElementById('voiceTimer').textContent;
+        } else if (activeTab.includes('Text')) {
+          mediaData.type = 'text';
+          mediaData.content = document.querySelector('.emergency-textarea').value;
+        } else if (activeTab.includes('Image')) {
+          mediaData.type = 'image';
+          mediaData.content = document.getElementById('imgPreview').src;
+        }
+        existingAlerts[alertIndex].media.push(mediaData);
+        localStorage.setItem('crisisAlerts', JSON.stringify(existingAlerts));
+        lastMediaCount++;
+      }
+    }
+    // --------------------------------
+
+    showToast('Update sent to Emergency Room');
+    setTimeout(() => back('screen-sent'), 1200);
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2700);
+  }
+
+  /* ══ LIVE CHAT WIDGET ══ */
+  let chatOpen = false;
+  let unreadCount = 0;
+
+  function toggleChat() {
+    chatOpen = !chatOpen;
+    document.getElementById('chatBox').classList.toggle('open', chatOpen);
+    if (chatOpen) {
+      unreadCount = 0;
+      document.getElementById('chatBadge').style.display = 'none';
+      const msgs = document.getElementById('chatMessages');
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+  }
+
+  function addChatBubble(text, sender, time) {
+    const msgs = document.getElementById('chatMessages');
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble ' + sender;
+    bubble.innerHTML = text + '<div class="chat-bubble-time">' + time + '</div>';
+    msgs.appendChild(bubble);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function chatSend() {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+
+    const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    addChatBubble(text, 'guest', time);
+
+    // Push to backend API
+    const alertId = localStorage.getItem('currentAlertId');
+    if (alertId) {
+      const mediaUpdate = { type: 'text', content: text, time: time, sender: 'guest' };
+      fetch(`/api/incidents/${alertId}/media`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mediaUpdate)
+      }).catch(e => console.error(e));
+      lastMediaCount++;
+    }
+  }
+
+  const socket = io();
+
+  socket.on('incident_resolved', (data) => {
+    const currentAlertId = localStorage.getItem('currentAlertId');
+    if (data.id === currentAlertId) {
+      goTo('screen-resolved');
+      localStorage.removeItem('currentAlertId');
+      setTimeout(() => {
+        window.location.reload();
+      }, 5000);
+    }
+  });
+
+  socket.on('incident_updated', (data) => {
+    const currentAlertId = localStorage.getItem('currentAlertId');
+    if (data.id === currentAlertId) {
+      if (data.media && data.media.length > lastMediaCount) {
+        const latestMedia = data.media[data.media.length - 1];
+        lastMediaCount = data.media.length;
+        if (latestMedia.sender === 'staff') {
+          addChatBubble(latestMedia.content, 'staff', latestMedia.time);
+
+          if (!chatOpen) {
+            unreadCount++;
+            const badge = document.getElementById('chatBadge');
+            badge.textContent = unreadCount;
+            badge.style.display = 'flex';
+            showToast('New message from Staff');
+          }
+        }
+      }
+    }
+  });
+
+  socket.on('evacuation_danger_zones', async (data) => {
+    const dangerZones = data.dangerZones || [];
+    const layer = document.getElementById('dangerZonesLayer');
+    if (!layer) return;
+    layer.innerHTML = '';
+    
+    // Node center-points for drawing markers
+    const nodeCoords = {
+      "Room 401": {x:50,y:45,w:60,h:50}, "Room 412": {x:115,y:45,w:60,h:50},
+      "Room 413": {x:180,y:45,w:60,h:50}, "Room 414": {x:245,y:45,w:60,h:50},
+      "Corridor West": {x:50,y:127,w:60,h:95}, "Corridor Mid1": {x:115,y:127,w:70,h:95},
+      "Corridor Mid2": {x:180,y:127,w:125,h:95}, "Corridor East": {x:270,y:127,w:20,h:95}
+    };
+
+    dangerZones.forEach(zone => {
+      const c = nodeCoords[zone];
+      if (c) {
+        layer.innerHTML += `<rect x="${c.x-c.w/2}" y="${c.y-c.h/2}" width="${c.w}" height="${c.h}" fill="rgba(255,0,0,0.2)" stroke="red" stroke-width="1"/>
+                            <text x="${c.x}" y="${c.y}" text-anchor="middle" font-size="6" fill="red" font-weight="bold">DANGER</text>`;
+      }
+    });
+
+    // Fetch new safe route from backend
+    try {
+      const res = await fetch('/api/route', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startRoom: 'Room 412', dangerZones })
+      });
+      const routeData = await res.json();
+      if (routeData.success && routeData.path.length > 0) {
+        let d = `M ${routeData.path[0].x} ${routeData.path[0].y}`;
+        for(let i=1; i<routeData.path.length; i++) {
+          d += ` L ${routeData.path[i].x} ${routeData.path[i].y}`;
+        }
+        document.getElementById('dynamicRoutePath').setAttribute('d', d);
+        showToast('AI: Evacuation route updated to avoid hazards');
+      }
+    } catch(e) { console.error(e); }
+  });
+
+</script>
+</body>
+</html>
