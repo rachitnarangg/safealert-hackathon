@@ -20,6 +20,11 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true })); // For Twilio webhooks
 app.use(express.static(__dirname)); // Serve HTML files in the same directory
 
+// Root route → redirect to admin setup page
+app.get('/', (req, res) => {
+  res.redirect('/admin-setup.html');
+});
+
 const JWT_SECRET = process.env.JWT_SECRET || 'safealert-dev-secret-change-in-production';
 const PORT = process.env.PORT || 3000;
 let db;
