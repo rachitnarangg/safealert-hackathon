@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>SafeAlert — Crisis Response Portal</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -28,16 +30,18 @@
 
   .screen {
     position: absolute; inset: 0; width: 100%; height: 100%;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
     opacity: 0; pointer-events: none; transform: translateY(22px);
     transition: opacity 0.4s cubic-bezier(.4,0,.2,1), transform 0.4s cubic-bezier(.4,0,.2,1);
-    overflow: hidden;
+    overflow-y: auto; overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 80px; /* Buffer for scrolling */
   }
   .screen.active { opacity: 1; pointer-events: all; transform: translateY(0); }
   .screen.exit { opacity: 0; transform: translateY(-22px); }
 
   /* ══ SCREEN 1: SOS ══ */
-  #screen-sos { background: var(--bg); }
+  #screen-sos { background: var(--bg); justify-content: center; padding-bottom: 0; }
 
   .sos-ambient {
     position: absolute; inset: 0;
@@ -195,6 +199,10 @@
   .check-ring { width:112px; height:112px; border-radius:50%; background:var(--green); display:flex; align-items:center; justify-content:center; margin-bottom:22px; animation:checkPop .6s cubic-bezier(.4,0,.2,1) both, checkGlow 2.5s .6s ease-in-out infinite; }
   @keyframes checkPop { 0%{transform:scale(0);opacity:0} 60%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
   @keyframes checkGlow { 0%,100%{box-shadow:0 0 0 0 rgba(52,199,89,.25)} 50%{box-shadow:0 0 0 20px rgba(52,199,89,0)} }
+  @keyframes pulse {
+    0% { opacity: 1; }
+    100% { opacity: 0.4; }
+  }
 
   .check-svg { width:52px; height:52px; }
   .check-path { fill:none; stroke:#fff; stroke-width:4.5; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:60; stroke-dashoffset:60; animation:drawCheck .5s .4s cubic-bezier(.4,0,.2,1) forwards; }
@@ -239,8 +247,38 @@
   .ai-badge-text strong { font-weight:700; display:block; font-size:13px; }
   .ai-badge-text span { font-size:12px; }
 
-  .map-container { flex:1; margin:0 clamp(18px,3.5vw,28px); background:var(--bg2); border-radius:20px; overflow:hidden; min-height:220px; }
-  .floor-plan { width:100%; height:100%; }
+  .map-container { flex:1; margin:0 clamp(18px,3.5vw,28px); border-radius:20px; overflow:hidden; min-height:280px; position:relative; }
+  #evacMap { width:100%; height:100%; background:#1a1a2e; z-index:1; }
+  .leaflet-container { background:#1a1a2e !important; }
+
+  /* ── Safety HUD Overlay ── */
+  .safety-hud { position:absolute; top:12px; left:12px; right:12px; z-index:1000; display:flex; gap:8px; pointer-events:none; }
+  .hud-card { background:rgba(0,0,0,0.75); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-radius:14px; padding:10px 14px; flex:1; border:1px solid rgba(255,255,255,0.08); pointer-events:auto; }
+  .hud-label { font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:rgba(255,255,255,0.45); margin-bottom:3px; }
+  .hud-value { font-size:18px; font-weight:800; color:#fff; line-height:1.1; }
+  .hud-value.green { color:#34C759; }
+  .hud-value.red { color:#FF3B30; }
+  .hud-value.blue { color:#007AFF; }
+
+  .hud-blocked { position:absolute; bottom:14px; left:12px; right:12px; z-index:1000; background:rgba(255,59,48,0.92); backdrop-filter:blur(12px); border-radius:14px; padding:14px 16px; text-align:center; display:none; animation:hudFlash 1.5s ease-in-out infinite; }
+  .hud-blocked-title { font-size:14px; font-weight:800; color:#fff; letter-spacing:0.05em; }
+  .hud-blocked-sub { font-size:12px; color:rgba(255,255,255,0.85); margin-top:4px; }
+  @keyframes hudFlash { 0%,100%{opacity:1} 50%{opacity:0.7} }
+
+  /* ── Leaflet Custom Markers ── */
+  .user-ping-marker { width:24px; height:24px; position:relative; }
+  .user-ping-core { width:14px; height:14px; background:#007AFF; border-radius:50%; border:3px solid #fff; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:2; box-shadow:0 2px 8px rgba(0,122,255,0.5); }
+  .user-ping-wave { width:24px; height:24px; border-radius:50%; background:rgba(0,122,255,0.25); position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); animation:pingWave 2s ease-out infinite; }
+  @keyframes pingWave { 0%{transform:translate(-50%,-50%) scale(1);opacity:0.6} 100%{transform:translate(-50%,-50%) scale(3);opacity:0} }
+
+  .exit-marker { width:28px; height:28px; background:#34C759; border-radius:50%; border:3px solid #fff; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:#fff; box-shadow:0 2px 10px rgba(52,199,89,0.5); }
+
+  .danger-pulse { border-radius:50%; background:rgba(255,59,48,0.2); border:2px solid rgba(255,59,48,0.6); animation:radarPulse 2s ease-out infinite; }
+  @keyframes radarPulse { 0%{transform:scale(0.8);opacity:0.8;box-shadow:0 0 0 0 rgba(255,59,48,0.4)} 50%{opacity:1} 100%{transform:scale(1.3);opacity:0;box-shadow:0 0 0 20px rgba(255,59,48,0)} }
+
+  /* ── Animated Evacuation Path ── */
+  .evac-path { stroke:#34C759; stroke-width:4; fill:none; stroke-linecap:round; stroke-dasharray:12 8; animation:flowPath 1.5s linear infinite; filter:drop-shadow(0 0 6px rgba(52,199,89,0.5)); }
+  @keyframes flowPath { 0%{stroke-dashoffset:40} 100%{stroke-dashoffset:0} }
 
   .map-legend { margin:10px clamp(18px,3.5vw,28px) 0; display:flex; gap:16px; flex-shrink:0; flex-wrap:wrap; }
   .legend-item { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text3); font-weight:500; }
@@ -608,58 +646,30 @@
     </div>
   </div>
   <div class="map-container">
-    <svg class="floor-plan" viewBox="0 0 340 260" xmlns="http://www.w3.org/2000/svg">
-      <rect x="10" y="10" width="320" height="240" rx="8" fill="#FFFFFF" stroke="#E5E5EA" stroke-width="1.5"/>
-      <rect x="20" y="20" width="60" height="50" rx="4" fill="#F2F2F7" stroke="#D1D1D6" stroke-width="1"/>
-      <text x="50" y="50" text-anchor="middle" font-size="9" fill="#636366" font-family="sans-serif">401</text>
-      <rect x="85" y="20" width="60" height="50" rx="4" fill="#FFF3F0" stroke="#FFCCCC" stroke-width="1.5"/>
-      <text x="115" y="47" text-anchor="middle" font-size="9" fill="#C0392B" font-family="sans-serif" font-weight="600">412</text>
-      <text x="115" y="58" text-anchor="middle" font-size="7" fill="#C0392B" font-family="sans-serif">YOU</text>
-      <rect x="150" y="20" width="60" height="50" rx="4" fill="#F2F2F7" stroke="#D1D1D6" stroke-width="1"/>
-      <text x="180" y="50" text-anchor="middle" font-size="9" fill="#636366" font-family="sans-serif">413</text>
-      <rect x="215" y="20" width="60" height="50" rx="4" fill="#F2F2F7" stroke="#D1D1D6" stroke-width="1"/>
-      <text x="245" y="50" text-anchor="middle" font-size="9" fill="#636366" font-family="sans-serif">414</text>
-      <rect x="20" y="180" width="60" height="60" rx="4" fill="#F2F2F7" stroke="#D1D1D6" stroke-width="1"/>
-      <text x="50" y="214" text-anchor="middle" font-size="9" fill="#636366" font-family="sans-serif">421</text>
-      <rect x="85" y="180" width="60" height="60" rx="4" fill="#F2F2F7" stroke="#D1D1D6" stroke-width="1"/>
-      <text x="115" y="214" text-anchor="middle" font-size="9" fill="#636366" font-family="sans-serif">422</text>
-      <rect x="150" y="180" width="60" height="60" rx="4" fill="#F2F2F7" stroke="#D1D1D6" stroke-width="1"/>
-      <text x="180" y="214" text-anchor="middle" font-size="9" fill="#636366" font-family="sans-serif">423</text>
-      <rect x="280" y="20" width="42" height="70" rx="4" fill="#E8F5E9" stroke="#A5D6A7" stroke-width="1.5"/>
-      <text x="301" y="48" text-anchor="middle" font-size="8" fill="#2E7D32" font-family="sans-serif" font-weight="600">STAIR</text>
-      <text x="301" y="60" text-anchor="middle" font-size="8" fill="#2E7D32" font-family="sans-serif" font-weight="600">B ↓</text>
-      <rect x="280" y="100" width="42" height="55" rx="4" fill="#E3F2FD" stroke="#90CAF9" stroke-width="1.5"/>
-      <text x="301" y="124" text-anchor="middle" font-size="7.5" fill="#1565C0" font-family="sans-serif" font-weight="600">EMER.</text>
-      <text x="301" y="136" text-anchor="middle" font-size="7.5" fill="#1565C0" font-family="sans-serif" font-weight="600">ROOM</text>
-      <rect x="280" y="165" width="42" height="75" rx="4" fill="#F3E5F5" stroke="#CE93D8" stroke-width="1.5"/>
-      <text x="301" y="206" text-anchor="middle" font-size="8" fill="#6A1B9A" font-family="sans-serif" font-weight="600">GARDEN</text>
-      <rect x="20" y="80" width="255" height="95" fill="#FAFAFA" stroke="#E5E5EA" stroke-width="0.5"/>
-      <text x="148" y="133" text-anchor="middle" font-size="8.5" fill="#AEAEB2" font-family="sans-serif">Corridor — Floor 4</text>
-      
-      <!-- Dynamic Danger Zones -->
-      <g id="dangerZonesLayer"></g>
-
-      <!-- Dynamic Evacuation Path -->
-      <path id="dynamicRoutePath" d="" fill="none" stroke="#34C759" stroke-width="4" stroke-linecap="round" stroke-dasharray="8 5">
-        <animate attributeName="stroke-dashoffset" from="100" to="0" dur="2s" repeatCount="indefinite"/>
-      </path>
-
-      <circle cx="115" cy="45" r="7" fill="#FF3B30"><animate attributeName="r" values="7;9;7" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0.6;1" dur="2s" repeatCount="indefinite"/></circle>
-      <text x="115" y="49" text-anchor="middle" font-size="7" fill="#fff" font-family="sans-serif" font-weight="700">YOU</text>
-      <circle cx="301" cy="55" r="8" fill="#34C759"/>
-      <text x="301" y="59" text-anchor="middle" font-size="7.5" fill="#fff" font-family="sans-serif" font-weight="700">EXIT</text>
-    </svg>
+    <!-- Safety HUD Overlay -->
+    <div class="safety-hud">
+      <div class="hud-card"><div class="hud-label">ETA to Safety</div><div class="hud-value green" id="hudETA">--</div></div>
+      <div class="hud-card"><div class="hud-label">Nearest Exit</div><div class="hud-value blue" id="hudExit">--</div></div>
+      <div class="hud-card"><div class="hud-label">Distance</div><div class="hud-value" id="hudDist">--</div></div>
+    </div>
+    <!-- Shelter In Place Warning -->
+    <div class="hud-blocked" id="hudBlocked">
+      <div class="hud-blocked-title">PATH BLOCKED: SHELTER IN PLACE &amp; SEAL DOOR</div>
+      <div class="hud-blocked-sub">HELP IS ON THE WAY — Stay low, cover vents with wet cloth</div>
+    </div>
+    <!-- Leaflet Interactive Map -->
+    <div id="evacMap"></div>
   </div>
   <div class="map-legend">
-    <div class="legend-item"><div class="legend-dot" style="background:#FF3B30"></div>Your location</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#007AFF"></div>Your location</div>
     <div class="legend-item"><div class="legend-dot" style="background:#34C759"></div>AI route</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#CC6600"></div>Avoid</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#1565C0"></div>Safe zone</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#FF3B30"></div>Danger zone</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#fff;border:2px solid #34C759"></div>Exit</div>
   </div>
   <div class="route-stats">
-    <div class="r-stat"><div class="r-stat-val">42m</div><div class="r-stat-key">Distance</div></div>
-    <div class="r-stat"><div class="r-stat-val">~50s</div><div class="r-stat-key">Est. Time</div></div>
-    <div class="r-stat"><div class="r-stat-val">Stair B</div><div class="r-stat-key">Via</div></div>
+    <div class="r-stat"><div class="r-stat-val" id="statDist">--</div><div class="r-stat-key">Distance</div></div>
+    <div class="r-stat"><div class="r-stat-val" id="statETA">--</div><div class="r-stat-key">Est. Time</div></div>
+    <div class="r-stat"><div class="r-stat-val" id="statExit">--</div><div class="r-stat-key">Via</div></div>
   </div>
 </div>
 
@@ -771,6 +781,26 @@
   </div>
 </div>
 
+<!-- WELFARE MODAL -->
+<div class="modal-overlay" id="welfareModal" style="align-items: center;">
+  <div class="modal-sheet" style="padding-bottom:36px; background: rgba(28,28,30,0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,59,48,0.3); border-radius: 28px;">
+    <div class="call-avatar" style="background: rgba(255,59,48,0.15);">
+      <svg viewBox="0 0 24 24" fill="none" style="width:40px;height:40px; stroke:#FF3B30;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke-width="2" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="call-modal-name" style="color:#fff; font-size:24px;">EMERGENCY BROADCAST</div>
+    <div class="call-modal-num" style="color:rgba(255,255,255,0.8); margin-bottom:16px; line-height:1.4;">The hotel has initiated a facility-wide evacuation. Please confirm your safety immediately.</div>
+    <div style="text-align:center; font-size:28px; font-weight:800; color:#FF3B30; margin-bottom: 24px; font-variant-numeric: tabular-nums;" id="welfareTimerDisplay">01:00</div>
+    <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+      <button class="modal-confirm-btn" style="background:#34C759; color:#fff; margin-bottom:0;" onclick="submitWelfareCheck('safe')">
+        I AM SAFE
+      </button>
+      <button class="modal-confirm-btn" style="background:#FF3B30; color:#fff; margin-bottom:0;" onclick="submitWelfareCheck('not_safe')">
+        I AM NOT SAFE
+      </button>
+    </div>
+  </div>
+</div>
+
 <button class="chat-fab" id="chatFab" onclick="toggleChat()">
   <svg viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
   <div class="chat-badge" id="chatBadge">0</div>
@@ -852,31 +882,7 @@
         { enableHighAccuracy: true, maximumAge: 0 }
       );
     }
-    
-    fetchMapConfig();
   });
-
-  async function fetchMapConfig() {
-    try {
-      const res = await fetch('/api/config');
-      const config = await res.json();
-      if (config.mapImage) {
-        const svg = document.querySelector('.floor-plan');
-        if (svg) {
-          const rects = svg.querySelectorAll('rect');
-          rects.forEach(r => r.style.display = 'none');
-          const texts = svg.querySelectorAll('text');
-          // Hide text except for the dynamic danger zones/nodes if we add them, but keeping it simple:
-          texts.forEach(t => t.style.display = 'none');
-          
-          const imgHtml = `<image href="${config.mapImage}" x="0" y="0" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" opacity="0.9" />`;
-          svg.insertAdjacentHTML('afterbegin', imgHtml);
-        }
-      }
-    } catch(e) {
-      console.error("Failed to fetch map config", e);
-    }
-  }
 
   /* MULTI-LANGUAGE */
   const i18n = {
@@ -1025,7 +1031,12 @@
   const MIC_SVG  = `<svg id="voiceIcon" viewBox="0 0 40 40" fill="none"><rect x="14" y="4" width="12" height="20" rx="6" fill="#fff"/><path d="M7 20a13 13 0 0026 0M20 33v5M15 38h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg>`;
   const STOP_SVG = `<svg id="voiceIcon" viewBox="0 0 40 40" fill="none"><rect x="11" y="11" width="18" height="18" rx="4" fill="#fff"/></svg>`;
 
-  function toggleRecording() {
+  let mediaRecorder;
+  let audioChunks = [];
+  let currentAudioBlob = null;
+  let currentImageFile = null;
+
+  async function toggleRecording() {
     isRecording = !isRecording;
     const btn = document.getElementById('voiceBtn');
     if (isRecording) {
@@ -1038,53 +1049,78 @@
         const m = Math.floor(recSeconds/60), s = recSeconds%60;
         document.getElementById('voiceTimer').textContent = m+':'+String(s).padStart(2,'0');
       }, 1000);
+
+      if (navigator.mediaDevices) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = [];
+          mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+          mediaRecorder.onstop = () => {
+            currentAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            stream.getTracks().forEach(t => t.stop());
+          };
+          mediaRecorder.start();
+        } catch(err) { console.error("Mic error:", err); showToast("Microphone access denied"); }
+      }
     } else {
       btn.classList.remove('recording'); btn.innerHTML = MIC_SVG;
       document.getElementById('voiceStatus').textContent = 'Recording saved — tap Send';
       document.getElementById('voiceWave').style.visibility = 'hidden';
       clearInterval(recInterval);
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
     }
   }
 
   function previewImage(input) {
     if (!input.files || !input.files[0]) return;
+    currentImageFile = input.files[0];
     const r = new FileReader();
     r.onload = e => {
       const p = document.getElementById('imgPreview');
       p.src = e.target.result; p.style.display = 'block';
       document.getElementById('imageArea').style.display = 'none';
     };
-    r.readAsDataURL(input.files[0]);
+    r.readAsDataURL(currentImageFile);
   }
 
-  function sendMedia() {
-    // --- LOCALSTORAGE INTEGRATION ---
+  async function sendMedia() {
     const alertId = localStorage.getItem('currentAlertId');
-    if (alertId) {
-      const existingAlerts = JSON.parse(localStorage.getItem('crisisAlerts')) || [];
-      const alertIndex = existingAlerts.findIndex(a => a.id === alertId);
-      if (alertIndex !== -1) {
-        const activeTab = document.querySelector('.media-tab.active').textContent.trim();
-        let mediaData = { time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) };
-        if (activeTab.includes('Voice')) {
-          mediaData.type = 'voice';
-          mediaData.content = document.getElementById('voiceTimer').textContent;
-        } else if (activeTab.includes('Text')) {
-          mediaData.type = 'text';
-          mediaData.content = document.querySelector('.emergency-textarea').value;
-        } else if (activeTab.includes('Image')) {
-          mediaData.type = 'image';
-          mediaData.content = document.getElementById('imgPreview').src;
-        }
-        existingAlerts[alertIndex].media.push(mediaData);
-        localStorage.setItem('crisisAlerts', JSON.stringify(existingAlerts));
-        lastMediaCount++;
-      }
-    }
-    // --------------------------------
+    if (!alertId) return;
 
-    showToast('Update sent to Emergency Room');
-    setTimeout(() => back('screen-sent'), 1200);
+    const activeTab = document.querySelector('.media-tab.active').textContent.trim();
+    const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    let payload = { id: alertId, type: '', content: '', time, sender: 'guest' };
+
+    try {
+      if (activeTab.includes('Voice')) {
+        if (!currentAudioBlob) return showToast('Please record audio first');
+        const fd = new FormData();
+        fd.append('media', currentAudioBlob, 'voice.webm');
+        const res = await fetch('/api/upload-media', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.url) { payload.type = 'voice'; payload.content = data.url; }
+      } else if (activeTab.includes('Text')) {
+        payload.type = 'text';
+        payload.content = document.querySelector('.emergency-textarea').value;
+      } else if (activeTab.includes('Image')) {
+        if (!currentImageFile) return showToast('Please select an image first');
+        const fd = new FormData();
+        fd.append('media', currentImageFile);
+        const res = await fetch('/api/upload-media', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.url) { payload.type = 'image'; payload.content = data.url; }
+      }
+      
+      if (payload.type && payload.content) {
+        socket.emit('chat_message', payload);
+        showToast('Update sent to Emergency Room');
+        setTimeout(() => back('screen-sent'), 1200);
+      }
+    } catch(err) {
+      console.error(err);
+      showToast('Failed to send media');
+    }
   }
 
   function showToast(msg) {
@@ -1126,15 +1162,11 @@
     const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     addChatBubble(text, 'guest', time);
 
-    // Push to backend API
+    // Push via socket
     const alertId = localStorage.getItem('currentAlertId');
     if (alertId) {
-      const mediaUpdate = { type: 'text', content: text, time: time, sender: 'guest' };
-      fetch(`/api/incidents/${alertId}/media`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mediaUpdate)
-      }).catch(e => console.error(e));
+      const payload = { id: alertId, type: 'text', content: text, time: time, sender: 'guest' };
+      socket.emit('chat_message', payload);
       lastMediaCount++;
     }
   }
@@ -1152,68 +1184,221 @@
     }
   });
 
-  socket.on('incident_updated', (data) => {
+  socket.on('staff_reply', (data) => {
     const currentAlertId = localStorage.getItem('currentAlertId');
     if (data.id === currentAlertId) {
-      if (data.media && data.media.length > lastMediaCount) {
-        const latestMedia = data.media[data.media.length - 1];
-        lastMediaCount = data.media.length;
-        if (latestMedia.sender === 'staff') {
-          addChatBubble(latestMedia.content, 'staff', latestMedia.time);
-
-          if (!chatOpen) {
-            unreadCount++;
-            const badge = document.getElementById('chatBadge');
-            badge.textContent = unreadCount;
-            badge.style.display = 'flex';
-            showToast('New message from Staff');
-          }
-        }
+      addChatBubble(data.content, 'staff', data.time);
+      if (!chatOpen) {
+        unreadCount++;
+        const badge = document.getElementById('chatBadge');
+        badge.textContent = unreadCount;
+        badge.style.display = 'flex';
+        showToast('New message from Staff');
       }
     }
   });
 
-  socket.on('evacuation_danger_zones', async (data) => {
-    const dangerZones = data.dangerZones || [];
-    const layer = document.getElementById('dangerZonesLayer');
-    if (!layer) return;
-    layer.innerHTML = '';
+  socket.on('evacuation_danger_zones', (data) => {
+    updateEvacRoute(data.dangerZones || []);
+    showToast('AI: Route recalculated — hazard zones avoided');
+  });
+
+  // --- WELFARE CHECK & BROADCAST LOGIC ---
+  let welfareInterval = null;
+
+  function updateWelfareTimerUI(endTime) {
+    const end = parseInt(endTime);
+    if (isNaN(end)) {
+      clearInterval(welfareInterval);
+      localStorage.removeItem('welfareEndTime');
+      return;
+    }
     
-    // Node center-points for drawing markers
-    const nodeCoords = {
-      "Room 401": {x:50,y:45,w:60,h:50}, "Room 412": {x:115,y:45,w:60,h:50},
-      "Room 413": {x:180,y:45,w:60,h:50}, "Room 414": {x:245,y:45,w:60,h:50},
-      "Corridor West": {x:50,y:127,w:60,h:95}, "Corridor Mid1": {x:115,y:127,w:70,h:95},
-      "Corridor Mid2": {x:180,y:127,w:125,h:95}, "Corridor East": {x:270,y:127,w:20,h:95}
-    };
-
-    dangerZones.forEach(zone => {
-      const c = nodeCoords[zone];
-      if (c) {
-        layer.innerHTML += `<rect x="${c.x-c.w/2}" y="${c.y-c.h/2}" width="${c.w}" height="${c.h}" fill="rgba(255,0,0,0.2)" stroke="red" stroke-width="1"/>
-                            <text x="${c.x}" y="${c.y}" text-anchor="middle" font-size="6" fill="red" font-weight="bold">DANGER</text>`;
-      }
-    });
-
-    // Fetch new safe route from backend
-    try {
-      const res = await fetch('/api/route', {
+    const remaining = end - Date.now();
+    console.log(`[Welfare Timer] Remaining ms: ${remaining}`);
+    
+    if (remaining <= 0) {
+      clearInterval(welfareInterval);
+      document.getElementById('welfareTimerDisplay').textContent = "00:00";
+      localStorage.removeItem('welfareEndTime'); 
+      
+      // Auto-report Non-Responsive
+      const alertId = localStorage.getItem('currentAlertId');
+      fetch(`/api/welfare-response`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ startLat: userLat, startLng: userLng, floor: userLandmark, dangerZones })
-      });
-      const routeData = await res.json();
-      if (routeData.success && routeData.path.length > 0) {
-        let d = `M ${routeData.path[0].x} ${routeData.path[0].y}`;
-        for(let i=1; i<routeData.path.length; i++) {
-          d += ` L ${routeData.path[i].x} ${routeData.path[i].y}`;
-        }
-        document.getElementById('dynamicRoutePath').setAttribute('d', d);
-        showToast('AI: Evacuation route updated to avoid hazards');
-      }
-    } catch(e) { console.error(e); }
+        body: JSON.stringify({ 
+          id: alertId || null, 
+          status: 'non_responsive',
+          lat: userLat || 0,
+          lng: userLng || 0,
+          room: userLandmark
+        })
+      }).then(r => r.json()).then(data => {
+        if (data.id && !alertId) localStorage.setItem('currentAlertId', data.id);
+      }).catch(e => console.error(e));
+    } else {
+      const secs = Math.ceil(remaining / 1000);
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      document.getElementById('welfareTimerDisplay').textContent = 
+        String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    }
+  }
+
+  function initWelfareTimer() {
+    const endTime = localStorage.getItem('welfareEndTime');
+    if (!endTime) return;
+    
+    document.getElementById('welfareModal').classList.add('open');
+    clearInterval(welfareInterval);
+    
+    updateWelfareTimerUI(endTime); // Initial immediate update
+    welfareInterval = setInterval(() => updateWelfareTimerUI(endTime), 1000);
+  }
+
+  socket.on('global_emergency_broadcast', (data) => {
+    console.log('[Welfare Timer] Received broadcast. Starting new 60s countdown.');
+    const newEndTime = Date.now() + 60000;
+    localStorage.setItem('welfareEndTime', newEndTime);
+    initWelfareTimer();
   });
+
+  function submitWelfareCheck(status) {
+    clearInterval(welfareInterval);
+    localStorage.removeItem('welfareEndTime');
+    document.getElementById('welfareModal').classList.remove('open');
+    showToast(status === 'safe' ? 'Safety status confirmed.' : 'Emergency services dispatched to your location.');
+    
+    const alertId = localStorage.getItem('currentAlertId');
+    fetch(`/api/welfare-response`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        id: alertId || null, 
+        status: status,
+        lat: userLat || 0,
+        lng: userLng || 0,
+        room: userLandmark
+      })
+    }).then(r => r.json()).then(data => {
+      if (data.id && !alertId) localStorage.setItem('currentAlertId', data.id);
+    }).catch(e => console.error(e));
+  }
+
+  // Check on load
+  if (localStorage.getItem('welfareEndTime')) {
+    initWelfareTimer();
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // DYNAMIC SMART EVACUATION ENGINE (Leaflet + Dijkstra)
+  // ═══════════════════════════════════════════════════════════
+  const floorGraph = {
+    "Room 401":      { x:50,  y:210, edges:["Corridor West"], label:"401" },
+    "Room 412":      { x:115, y:210, edges:["Corridor Mid1"], label:"412" },
+    "Room 413":      { x:180, y:210, edges:["Corridor Mid2"], label:"413" },
+    "Room 414":      { x:245, y:210, edges:["Corridor East"], label:"414" },
+    "Room 421":      { x:50,  y:60,  edges:["Corridor West"], label:"421" },
+    "Room 422":      { x:115, y:60,  edges:["Corridor Mid1"], label:"422" },
+    "Room 423":      { x:180, y:60,  edges:["Corridor Mid2"], label:"423" },
+    "Corridor West": { x:50,  y:135, edges:["Room 401","Room 421","Corridor Mid1"] },
+    "Corridor Mid1": { x:115, y:135, edges:["Room 412","Room 422","Corridor West","Corridor Mid2"] },
+    "Corridor Mid2": { x:180, y:135, edges:["Room 413","Room 423","Corridor Mid1","Corridor East"] },
+    "Corridor East": { x:270, y:135, edges:["Room 414","Corridor Mid2","Exit Stair B","Exit Garden"] },
+    "Exit Stair B":  { x:301, y:210, edges:["Corridor East"], isExit:true, label:"Stair B" },
+    "Exit Garden":   { x:301, y:60,  edges:["Corridor East"], isExit:true, label:"Garden" }
+  };
+  const WALK_SPEED = 1.3, M_PER_UNIT = 0.35;
+  const MAP_H = 260, MAP_W = 340;
+  let evacMap=null, userMkr=null, routeLine=null, currentBlocked=[];
+  const dangerMkrs=[];
+
+  function dijk(start, end, blocked) {
+    const d={}, p={}, Q=new Set(Object.keys(floorGraph));
+    for(const n of Q) d[n]=Infinity;
+    if(!floorGraph[start]) return [];
+    d[start]=0;
+    while(Q.size>0){
+      let u=null; for(const n of Q) if(u===null||d[n]<d[u]) u=n;
+      if(d[u]===Infinity||u===end) break; Q.delete(u);
+      for(const nb of (floorGraph[u].edges||[])){
+        if(!floorGraph[nb]) continue;
+        const w=blocked.includes(nb)?Infinity:Math.hypot(floorGraph[u].x-floorGraph[nb].x,floorGraph[u].y-floorGraph[nb].y);
+        const a=d[u]+w; if(a<d[nb]){d[nb]=a;p[nb]=u;}
+      }
+    }
+    const path=[]; let u=end;
+    if(p[u]!==undefined||u===start){while(u){path.unshift(u);u=p[u];}}
+    return path;
+  }
+  function nearestNode(x,y){let c=null,m=Infinity;for(const[k,n] of Object.entries(floorGraph)){const d=Math.hypot(n.x-x,n.y-y);if(d<m){m=d;c=k;}}return c;}
+  function bestRoute(start,blocked){
+    const exits=Object.entries(floorGraph).filter(([,n])=>n.isExit).map(([k])=>k);
+    let bp=[],bd=Infinity,be=null;
+    for(const ex of exits){const p=dijk(start,ex,blocked);if(p.length>0){let d=0;for(let i=1;i<p.length;i++)d+=Math.hypot(floorGraph[p[i]].x-floorGraph[p[i-1]].x,floorGraph[p[i]].y-floorGraph[p[i-1]].y);if(d<bd){bd=d;bp=p;be=ex;}}}
+    return {path:bp,dist:bd,exit:be};
+  }
+
+  function initEvacMap(){
+    if(evacMap) return;
+    evacMap=L.map('evacMap',{crs:L.CRS.Simple,minZoom:-1,maxZoom:3,zoomControl:false,attributionControl:false});
+    const bounds=[[0,0],[MAP_H,MAP_W]];
+    evacMap.fitBounds(bounds);
+    L.rectangle(bounds,{color:'#333',weight:2,fillColor:'#1a1a2e',fillOpacity:0.4,interactive:false}).addTo(evacMap);
+    // Fetch uploaded map
+    fetch('/api/config').then(r=>r.json()).then(c=>{if(c.mapImage)L.imageOverlay(c.mapImage,bounds,{opacity:0.35}).addTo(evacMap);}).catch(()=>{});
+    // Room labels
+    for(const[name,node] of Object.entries(floorGraph)){
+      if(node.label&&!node.isExit){
+        L.rectangle([[MAP_H-node.y-22,node.x-22],[MAP_H-node.y+22,node.x+22]],{color:'#555',weight:1,fillColor:'#2a2a3e',fillOpacity:0.6,interactive:false}).addTo(evacMap);
+        L.marker([MAP_H-node.y,node.x],{icon:L.divIcon({className:'',html:`<div style="color:#aaa;font-size:10px;font-weight:700;text-align:center;width:50px;margin-left:-25px;">${node.label}</div>`,iconSize:[0,0]}),interactive:false}).addTo(evacMap);
+      }
+      if(node.isExit) L.marker([MAP_H-node.y,node.x],{icon:L.divIcon({className:'',html:`<div class="exit-marker">EXIT</div>`,iconSize:[28,28],iconAnchor:[14,14]}),interactive:false}).addTo(evacMap);
+    }
+    // User marker
+    userMkr=L.marker([MAP_H-210,115],{icon:L.divIcon({className:'',html:`<div class="user-ping-marker"><div class="user-ping-wave"></div><div class="user-ping-core"></div></div>`,iconSize:[24,24],iconAnchor:[12,12]}),zIndexOffset:1000}).addTo(evacMap);
+    updateEvacRoute([]);
+  }
+
+  function updateEvacRoute(blocked){
+    currentBlocked=blocked; if(!evacMap) return;
+    dangerMkrs.forEach(m=>evacMap.removeLayer(m)); dangerMkrs.length=0;
+    blocked.forEach(z=>{const n=floorGraph[z];if(!n)return;const m=L.marker([MAP_H-n.y,n.x],{icon:L.divIcon({className:'',html:`<div class="danger-pulse" style="width:50px;height:50px;"></div>`,iconSize:[50,50],iconAnchor:[25,25]}),interactive:false}).addTo(evacMap);dangerMkrs.push(m);});
+    const pos=userMkr.getLatLng(), ux=pos.lng, uy=MAP_H-pos.lat;
+    const sn=nearestNode(ux,uy), result=bestRoute(sn,blocked);
+    if(routeLine){evacMap.removeLayer(routeLine);routeLine=null;}
+    const hb=document.getElementById('hudBlocked');
+    if(result.path.length===0){
+      hb.style.display='block';
+      document.getElementById('hudETA').textContent='N/A'; document.getElementById('hudETA').className='hud-value red';
+      document.getElementById('hudExit').textContent='BLOCKED'; document.getElementById('hudDist').textContent='--';
+      document.getElementById('statDist').textContent='--'; document.getElementById('statETA').textContent='BLOCKED'; document.getElementById('statExit').textContent='--';
+      return;
+    }
+    hb.style.display='none';
+    const ll=result.path.map(n=>[MAP_H-floorGraph[n].y,floorGraph[n].x]);
+    routeLine=L.polyline(ll,{color:'#34C759',weight:5,opacity:0.9,dashArray:'12 8',className:'evac-path'}).addTo(evacMap);
+    const dm=Math.round(result.dist*M_PER_UNIT), es=Math.round(dm/WALK_SPEED);
+    const eta=es<60?`~${es}s`:`~${Math.ceil(es/60)}m`, en=floorGraph[result.exit]?.label||result.exit;
+    document.getElementById('hudETA').textContent=eta; document.getElementById('hudETA').className='hud-value green';
+    document.getElementById('hudExit').textContent=en; document.getElementById('hudDist').textContent=`${dm}m`;
+    document.getElementById('statDist').textContent=`${dm}m`; document.getElementById('statETA').textContent=eta; document.getElementById('statExit').textContent=en;
+    const badge=document.querySelector('.ai-badge-text span');
+    if(badge) badge.textContent=`Fastest exit via ${en}${blocked.length>0?' — '+blocked.join(', ')+' avoided':' — all corridors clear'}`;
+  }
+
+  // Init map when screen becomes visible
+  const _origGoTo = goTo;
+  goTo = function(id) {
+    _origGoTo(id);
+    if (id === 'screen-map') {
+      setTimeout(() => { initEvacMap(); if(evacMap) evacMap.invalidateSize(); }, 350);
+    }
+  };
 
 </script>
 </body>
 </html>
+
+

@@ -23,10 +23,11 @@
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background-color: var(--bg);
       color: var(--text);
-      height: 100vh;
+      min-height: 100vh;
       display: grid;
       grid-template-columns: 320px 1fr 380px;
-      overflow: hidden;
+      overflow-y: auto;
+      overflow-x: hidden;
       -webkit-font-smoothing: antialiased;
     }
 
@@ -52,7 +53,6 @@
     /* LEFT SIDEBAR: ALERTS */
     .alerts-feed {
       flex: 1;
-      overflow-y: auto;
       padding: 16px;
       display: flex;
       flex-direction: column;
@@ -121,6 +121,7 @@
       align-items: center;
       justify-content: center;
       padding: 80px 24px 24px;
+      min-height: 600px;
     }
     .map-svg { width: 100%; height: 100%; }
     .map-marker {
@@ -134,10 +135,14 @@
       70% { box-shadow: 0 0 0 15px rgba(255,59,48,0); }
       100% { box-shadow: 0 0 0 0 rgba(255,59,48,0); }
     }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      100% { opacity: 0.4; }
+    }
 
     /* RIGHT SIDEBAR */
     .details-pane {
-      flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px;
+      flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 20px;
     }
     .details-pane::-webkit-scrollbar { display: none; }
     
@@ -337,6 +342,21 @@
       .login-card { margin: 16px; padding: 32px 24px 28px; }
     }
 
+    @media (max-width: 1100px) {
+      body {
+        display: flex;
+        flex-direction: column;
+      }
+      .panel {
+        height: auto;
+        min-height: 400px;
+        flex: none;
+      }
+      .map-container {
+        min-height: 400px;
+      }
+    }
+
     /* ALERT FLASH OVERLAY */
     .flash-overlay {
       position: fixed; inset: 0; z-index: 9999;
@@ -433,6 +453,12 @@
         </button>
       </div>
     </div>
+    <div style="padding: 0 16px 16px 16px;">
+      <button class="btn btn-911" style="width:100%; font-weight:800; padding:16px; background:#FF3B30; color:#fff; display:flex; text-align:center; justify-content:center; letter-spacing:0.05em;" onclick="activateGlobalEmergency()">
+        <svg viewBox="0 0 24 24" style="stroke:#fff; margin-right:8px; width:20px; height:20px;"><path d="M12 2L2 22h20L12 2z" fill="none" stroke-linejoin="round" stroke-width="2"/><circle cx="12" cy="16" r="1" fill="#fff" stroke="none"/><path d="M12 10v4" stroke-width="2" stroke-linecap="round"/></svg>
+        ACTIVATE GLOBAL EMERGENCY
+      </button>
+    </div>
   </div>
 
   <!-- MAIN AREA: MAP & DASHBOARD -->
@@ -513,7 +539,8 @@
       others: `<svg viewBox="0 0 56 56" fill="none"><path d="M28 8L51 46H5L28 8Z" fill="#FF9500"/></svg>`,
       pin: `<svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`,
       shield: `<svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>`,
-      building: `<svg viewBox="0 0 24 24"><path d="M15 11V5l-3-3-3 3v2H3v14h18V11h-6zm-8 8H5v-2h2v2zm0-4H5v-2h2v2zm0-4H5V9h2v2zm6 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V9h2v2zm0-4h-2V5h2v2zm6 12h-2v-2h2v2zm0-4h-2v-2h2v2z"/></svg>`
+      building: `<svg viewBox="0 0 24 24"><path d="M15 11V5l-3-3-3 3v2H3v14h18V11h-6zm-8 8H5v-2h2v2zm0-4H5v-2h2v2zm0-4H5V9h2v2zm6 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V9h2v2zm0-4h-2V5h2v2zm6 12h-2v-2h2v2zm0-4h-2v-2h2v2z"/></svg>`,
+      "welfare check": `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`
     };
 
     function startTicker() {
@@ -546,21 +573,41 @@
       }
 
       const sorted = [...alertsData].sort((a, b) => {
-        if (a.severity === 'high' && b.severity !== 'high') return -1;
-        if (a.severity !== 'high' && b.severity === 'high') return 1;
+        const getScore = (al) => {
+          if (al.status === 'not_safe') return 5;
+          if (al.status === 'non_responsive') return 4;
+          if (al.severity === 'critical') return 3;
+          if (al.severity === 'high') return 2;
+          if (al.status === 'safe') return 0;
+          return 1; // Pending
+        };
+        const scoreA = getScore(a);
+        const scoreB = getScore(b);
+        if (scoreA !== scoreB) return scoreB - scoreA;
         return new Date('1970/01/01 ' + b.time) - new Date('1970/01/01 ' + a.time);
       });
 
       feed.innerHTML = '';
       sorted.forEach(alert => {
         const card = document.createElement('div');
-        const sev = alert.severity === 'critical' ? 'high' : alert.severity;
+        const sev = (alert.status === 'non_responsive' || alert.status === 'not_safe') ? 'high' : (alert.severity === 'critical' ? 'high' : alert.severity);
         card.className = `alert-card severity-${sev} ${alert.id === activeAlertId ? 'active' : ''}`;
         card.onclick = () => selectAlert(alert.id);
         
+        let statusBadge = '';
+        if (alert.status === 'not_safe') {
+          statusBadge = `<span style="background:#FF3B30; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold; margin-left:8px; animation: pulse 1s infinite alternate;">NOT SAFE</span>`;
+        } else if (alert.status === 'non_responsive') {
+          statusBadge = `<span style="background:#8B0000; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold; margin-left:8px; animation: pulse 1s infinite alternate;">NON-RESPONSIVE</span>`;
+        } else if (alert.status === 'safe') {
+          statusBadge = `<span style="background:#34C759; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold; margin-left:8px;">SAFE</span>`;
+        } else if (alert.severity === 'critical') {
+          statusBadge = `<span style="background:#FF3B30; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold; margin-left:8px;">CRITICAL</span>`;
+        }
+
         card.innerHTML = `
           <div class="alert-header">
-            <div class="alert-type"><div class="alert-icon">${ICONS[alert.type] || ''}</div> ${alert.type} ${alert.escalated ? '<span class="escalation-badge">ESCALATED</span>' : ''}</div>
+            <div class="alert-type"><div class="alert-icon">${ICONS[alert.type.toLowerCase()] || ''}</div> ${alert.type} ${alert.escalated ? '<span class="escalation-badge">ESCALATED</span>' : ''} ${statusBadge}</div>
             <div class="alert-time">${alert.time}</div>
           </div>
           <div class="alert-loc">${ICONS.pin} ${alert.room} · ${alert.floor} 
@@ -668,9 +715,15 @@
           if (m.sender === 'staff') {
             mediaLabel = `<strong style="color:var(--blue);">Staff Update:</strong> "${m.content}"`;
           } else {
-            if (m.type === 'voice') mediaLabel = `<strong>Voice Note</strong> (${m.content})`;
+            if (m.type === 'voice') {
+              if (m.content.startsWith('/uploads')) {
+                mediaLabel = `<strong>Voice Note</strong><br><audio controls src="${m.content}" style="width:100%; height:32px; margin-top:6px;"></audio>`;
+              } else {
+                mediaLabel = `<strong>Voice Note</strong> (${m.content})`; // Fallback for old fake data
+              }
+            }
             if (m.type === 'text') mediaLabel = `<strong>Message:</strong> "${m.content}"`;
-            if (m.type === 'image') mediaLabel = `<strong>Photo received</strong><br><img src="${m.content}" class="tl-img">`;
+            if (m.type === 'image') mediaLabel = `<strong>Photo received</strong><br><img src="${m.content}" class="tl-img" style="max-width:100%; border-radius:8px; margin-top:6px;">`;
           }
           
           timelineHTML += `
@@ -761,35 +814,81 @@
       } catch(e) { console.error(e); }
     }
 
-    async function sendStaffUpdate(alertId) {
+    function sendStaffUpdate(alertId) {
       const input = document.getElementById('commsInput');
       const text = input.value.trim();
       if (!text) return;
       
-      const mediaUpdate = {
+      const payload = {
+        id: alertId,
         sender: 'staff',
         type: 'text',
         content: text,
         time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
       };
 
+      socket.emit('staff_reply', payload);
+      input.value = '';
+    }
+
+    async function activateGlobalEmergency() {
+      if (!confirm("WARNING: This will broadcast an emergency alert to all connected guest portals and trigger welfare checks. Proceed?")) return;
       try {
-        await fetch(`/api/incidents/${alertId}/media`, {
+        await fetch('/api/emergency/broadcast', { method: 'POST' });
+        
+        // Trigger simulated SMS fallback for unconnected devices
+        // Usually you would query the DB for all rooms/guests. For simulation, we send one example.
+        await fetch('/api/twilio/simulate-welfare-sms', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(mediaUpdate)
+          body: JSON.stringify({ phone: '+1234567890', room: 'Simulated Offline Guest' })
         });
-        input.value = '';
-      } catch(e) { console.error(e); }
+        
+        alert("Global Emergency Activated! Welfare checks have been dispatched.");
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     const socket = io();
+
+    socket.on('incident_welfare_updated', (data) => {
+      const idx = alertsData.findIndex(a => a.id === data.id);
+      if (idx !== -1) {
+        alertsData[idx].status = data.status;
+        if (data.lat) alertsData[idx].lat = data.lat;
+        if (data.lng) alertsData[idx].lng = data.lng;
+        renderAlerts();
+        updateStats();
+        if (activeAlertId === data.id) selectAlert(data.id);
+        
+        const locString = `Room ${alertsData[idx].room}`;
+        if (data.status === 'safe') {
+          showToast(`✅ SAFE: ${locString}`, '#34C759');
+        } else if (data.status === 'not_safe') {
+          showToast(`🚨 NOT SAFE: ${locString}`, '#FF3B30', true);
+        } else if (data.status === 'non_responsive') {
+          showToast(`⚠️ NON-RESPONSIVE: ${locString}`, '#8B0000', true);
+        }
+      }
+    });
 
     socket.on('new_alert', (alert) => {
       alertsData.push(alert);
       renderAlerts();
       updateStats();
-      triggerAlertEffect();
+      if (alert.type !== 'Welfare Check') {
+        triggerAlertEffect();
+      } else {
+        const locString = `Room ${alert.room}`;
+        if (alert.status === 'safe') {
+          showToast(`✅ SAFE: ${locString}`, '#34C759');
+        } else if (alert.status === 'not_safe') {
+          showToast(`🚨 NOT SAFE: ${locString}`, '#FF3B30', true);
+        } else if (alert.status === 'non_responsive') {
+          showToast(`⚠️ NON-RESPONSIVE: ${locString}`, '#8B0000', true);
+        }
+      }
       startEscalation(alert.id);
     });
 
@@ -940,11 +1039,16 @@
       setTimeout(() => { window.location.href = 'tel:' + pendingCallNum; }, 700);
     }
 
-    function showToast(msg) {
+    function showToast(msg, bgColor = 'var(--black)', isFlashing = false) {
       const t = document.getElementById('toast');
       t.textContent = msg;
+      t.style.background = bgColor;
+      t.style.animation = isFlashing ? 'pulse 1s infinite alternate' : 'none';
       t.classList.add('show');
-      setTimeout(() => t.classList.remove('show'), 2700);
+      setTimeout(() => {
+        t.classList.remove('show');
+        setTimeout(() => { t.style.animation = 'none'; t.style.background = 'var(--black)'; }, 300);
+      }, isFlashing ? 5000 : 2700);
     }
 
     /* Mobile Tab Switching */

@@ -10,6 +10,21 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const fs = require('fs');
+const multer = require('multer');
+
+// Setup multer storage
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage });
 
 const app = express();
 const server = http.createServer(app);
@@ -19,6 +34,7 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true })); // For Twilio webhooks
 app.use(express.static(__dirname)); // Serve HTML files in the same directory
+app.use('/uploads', express.static(uploadDir)); // Serve uploaded media
 
 // Root route → redirect to admin setup page
 app.get('/', (req, res) => {
@@ -28,6 +44,9 @@ app.get('/', (req, res) => {
 const JWT_SECRET = process.env.JWT_SECRET || 'safealert-dev-secret-change-in-production';
 const PORT = process.env.PORT || 3000;
 let db;
+
+let globalEmergencyActive = false;
+let globalEmergencyStartTime = null;
 
 async function initDB() {
   db = await open({ filename: 'database.sqlite', driver: sqlite3.Database });
@@ -448,6 +467,12 @@ app.post('/api/incidents/:id/media', async (req, res) => {
   res.json({ success: true });
 });
 
+app.post('/api/upload-media', upload.single('media'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const url = `/uploads/${req.file.filename}`;
+  res.json({ success: true, url });
+});
+
 app.post('/api/incidents/:id/resolve', async (req, res) => {
   const { id } = req.params;
   const resolvedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -463,6 +488,61 @@ app.post('/api/incidents/:id/escalate', async (req, res) => {
   await db.run('UPDATE incidents SET severity = ?, escalated = 1 WHERE id = ?', ['critical', id]);
   io.emit('incident_escalated', { id });
   res.json({ success: true });
+});
+
+// --- NEW LOGIC: Welfare & Broadcast ---
+app.post('/api/emergency/broadcast', (req, res) => {
+  globalEmergencyActive = true;
+  globalEmergencyStartTime = Date.now();
+  io.emit('global_emergency_broadcast', { active: true, startTime: globalEmergencyStartTime });
+  res.json({ success: true });
+});
+
+app.post('/api/incidents/:id/welfare', async (req, res) => {
+  const { id } = req.params;
+  const { status, lat, lng } = req.body; 
+  if (lat && lng) {
+    await db.run('UPDATE incidents SET status = ?, lat = ?, lng = ? WHERE id = ?', [status, lat, lng, id]);
+  } else {
+    await db.run('UPDATE incidents SET status = ? WHERE id = ?', [status, id]);
+  }
+  io.emit('incident_welfare_updated', { id, status, lat, lng });
+  res.json({ success: true });
+});
+
+app.post('/api/welfare-response', async (req, res) => {
+  const { id, status, lat, lng, room } = req.body;
+  let incident = id ? await db.get('SELECT * FROM incidents WHERE id = ?', [id]) : null;
+
+  if (incident) {
+    if (lat && lng) {
+      await db.run('UPDATE incidents SET status = ?, lat = ?, lng = ? WHERE id = ?', [status, lat, lng, id]);
+    } else {
+      await db.run('UPDATE incidents SET status = ? WHERE id = ?', [status, id]);
+    }
+    io.emit('incident_welfare_updated', { id, status, lat, lng });
+    res.json({ success: true, id });
+  } else {
+    const newId = 'WLF-' + Math.floor(Math.random()*10000);
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    await db.run(`INSERT INTO incidents (id, type, room, floor, severity, status, time, lat, lng)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [newId, 'Welfare Check', room || 'Unknown', 'Unknown', 'high', status, time, lat, lng]
+    );
+    const newAlert = {
+      id: newId, type: 'Welfare Check', room: room || 'Unknown', floor: 'Unknown',
+      severity: 'high', status, time, lat, lng, media: [], children: []
+    };
+    io.emit('new_alert', newAlert);
+    res.json({ success: true, id: newId });
+  }
+});
+
+app.post('/api/twilio/simulate-welfare-sms', (req, res) => {
+  const { phone, room } = req.body;
+  console.log(`\n[TWILIO API SIMULATION] 🚨 EMERGENCY SMS SENT TO: ${phone} (Room ${room})`);
+  console.log(`MESSAGE: "EMERGENCY: Building Evacuation. Confirm safety at http://localhost:${PORT}/crisis-portal.html or reply SAFE."\n`);
+  res.json({ success: true, message: 'SMS Sent via Twilio API' });
 });
 
 app.get('/api/ip', (req, res) => {
@@ -494,6 +574,31 @@ io.on('connection', (socket) => {
     
     // Broadcast immediately to the staff dashboard
     io.emit('location_updated', data);
+  });
+
+  // Guest to Staff
+  socket.on('chat_message', async (data) => {
+    // data = { id, type, content, time, sender: 'guest' }
+    const row = await db.get('SELECT media FROM incidents WHERE id = ?', [data.id]);
+    if (row) {
+      const mediaArr = JSON.parse(row.media || '[]');
+      mediaArr.push(data);
+      await db.run('UPDATE incidents SET media = ? WHERE id = ?', [JSON.stringify(mediaArr), data.id]);
+      io.emit('incident_updated', { id: data.id, media: mediaArr });
+    }
+  });
+
+  // Staff to Guest
+  socket.on('staff_reply', async (data) => {
+    // data = { id, type: 'text', content, time, sender: 'staff' }
+    const row = await db.get('SELECT media FROM incidents WHERE id = ?', [data.id]);
+    if (row) {
+      const mediaArr = JSON.parse(row.media || '[]');
+      mediaArr.push(data);
+      await db.run('UPDATE incidents SET media = ? WHERE id = ?', [JSON.stringify(mediaArr), data.id]);
+      io.emit('incident_updated', { id: data.id, media: mediaArr });
+      io.emit('staff_reply', data); // Explicitly send to guest
+    }
   });
 
   socket.on('disconnect', () => {
