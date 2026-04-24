@@ -124,9 +124,10 @@
     }
     .map-svg { width: 100%; height: 100%; }
     .map-marker {
-      position: absolute; width: 14px; height: 14px; background: var(--red); border-radius: 50%;
+      position: absolute; width: 16px; height: 16px; background: var(--red); border-radius: 50%;
       transform: translate(-50%, -50%); display: none;
-      animation: pulseMarker 2s infinite;
+      animation: pulseMarker 1.5s infinite;
+      transition: left 0.8s cubic-bezier(0.4, 0, 0.2, 1), top 0.8s cubic-bezier(0.4, 0, 0.2, 1);
     }
     @keyframes pulseMarker {
       0% { box-shadow: 0 0 0 0 rgba(255,59,48,0.4); }
@@ -586,6 +587,25 @@
       }
     }
 
+    function mapGPSToSVG(lat, lng) {
+      // Mock Bounding Box for the hotel floor plan (hackathon demo bounds)
+      const MIN_LAT = 34.0500, MAX_LAT = 34.0510;
+      const MIN_LNG = -118.2500, MAX_LNG = -118.2490;
+      
+      if (!lat || !lng) return { x: '50%', y: '50%' };
+      
+      // If the real GPS is way out of bounds, default to center for the demo
+      if (lat < MIN_LAT - 1 || lat > MAX_LAT + 1) return { x: '50%', y: '50%' };
+
+      let percentX = ((lng - MIN_LNG) / (MAX_LNG - MIN_LNG)) * 100;
+      let percentY = ((MAX_LAT - lat) / (MAX_LAT - MIN_LAT)) * 100; // inverted Y
+
+      percentX = Math.max(5, Math.min(95, percentX));
+      percentY = Math.max(5, Math.min(95, percentY));
+
+      return { x: percentX + '%', y: percentY + '%' };
+    }
+
     function selectAlert(id) {
       activeAlertId = id;
       clearEscalation(id); // Acknowledge = stop escalation
@@ -594,6 +614,18 @@
       
       const alert = alertsData.find(a => a.id === id);
       if (!alert) return;
+
+      const marker = document.getElementById('mapMarker');
+      if (alert.lat && alert.lng) {
+        const pos = mapGPSToSVG(alert.lat, alert.lng);
+        marker.style.left = pos.x;
+        marker.style.top = pos.y;
+        marker.style.display = 'block';
+      } else {
+        marker.style.left = '50%';
+        marker.style.top = '50%';
+        marker.style.display = 'block';
+      }
 
       document.getElementById('detailSubtitle').textContent = `Tracking ID: ${alert.id}`;
       
@@ -759,6 +791,23 @@
       updateStats();
       triggerAlertEffect();
       startEscalation(alert.id);
+    });
+
+    socket.on('location_updated', (data) => {
+      // data = { id, lat, lng }
+      const alert = alertsData.find(a => a.id === data.id);
+      if (alert) {
+        alert.lat = data.lat;
+        alert.lng = data.lng;
+        // If this is the active alert, smoothly move the map marker!
+        if (activeAlertId === data.id) {
+          const marker = document.getElementById('mapMarker');
+          const pos = mapGPSToSVG(data.lat, data.lng);
+          marker.style.transition = 'left 1s ease, top 1s ease'; // Smooth movement
+          marker.style.left = pos.x;
+          marker.style.top = pos.y;
+        }
+      }
     });
 
     socket.on('incident_updated', (data) => {
@@ -942,7 +991,29 @@
 
     function showDashboard() {
       document.getElementById('loginScreen').classList.add('hidden');
+      fetchMapConfig();
       loadAlerts();
+    }
+
+    async function fetchMapConfig() {
+      try {
+        const res = await fetch('/api/config');
+        const config = await res.json();
+        if (config.mapImage) {
+          const svg = document.querySelector('.map-svg');
+          // Keep the path but hide the static rectangles since the real map is here
+          const rects = svg.querySelectorAll('rect');
+          rects.forEach(r => r.style.display = 'none');
+          const texts = svg.querySelectorAll('text');
+          texts.forEach(t => t.style.display = 'none');
+          
+          // Insert the uploaded image as the background
+          const imgHtml = `<image href="${config.mapImage}" x="0" y="0" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" opacity="0.9" />`;
+          svg.insertAdjacentHTML('afterbegin', imgHtml);
+        }
+      } catch(e) {
+        console.error("Failed to fetch map config", e);
+      }
     }
 
     function logout() {

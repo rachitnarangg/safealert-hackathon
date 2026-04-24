@@ -526,7 +526,7 @@
   </div>
 
   <div class="sent-topbar">
-    <div class="sent-room-badge">
+    <div class="sent-room-badge" id="userLocationBadge">
       <div class="room-dot"></div>
       Room 412 &nbsp;·&nbsp; Floor 4
     </div>
@@ -742,7 +742,7 @@
       <svg id="modalIconSvg" viewBox="0 0 48 48" fill="none"></svg>
     </div>
     <div class="modal-title" id="modalTitle">Fire Emergency</div>
-    <div class="modal-room">Room 412 · Floor 4</div>
+    <div class="modal-room" id="userModalRoom">Room 412 · Floor 4</div>
     <div class="modal-desc">This will immediately alert the emergency response team and dispatch help to your location.</div>
     <button class="modal-confirm-btn" id="modalConfirmBtn" onclick="confirmAlert()" style="background:var(--red);color:#fff;">Confirm — Send Alert</button>
     <button class="modal-cancel-btn" onclick="closeModal('modalOverlay')">Cancel</button>
@@ -812,6 +812,71 @@
   let recSeconds = 0;
   let pendingCallNum = '';
   let lastMediaCount = 0;
+
+  // Read dynamic landmark assignment from QR code URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const userLandmark = urlParams.get('landmark') ? decodeURIComponent(urlParams.get('landmark')) : 'Auto-detected';
+  
+  let userLat = null;
+  let userLng = null;
+
+  // Request live geolocation and update UI immediately
+  document.addEventListener('DOMContentLoaded', () => {
+    const badge = document.getElementById('userLocationBadge');
+    const modalRoom = document.getElementById('userModalRoom');
+    
+    badge.innerHTML = `<div class="room-dot" style="background:var(--orange);"></div>Locating GPS... &nbsp;·&nbsp; Near: ${userLandmark}`;
+    modalRoom.innerHTML = `Locating GPS... &nbsp;·&nbsp; Near: ${userLandmark}`;
+
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(
+        (pos) => {
+          userLat = pos.coords.latitude;
+          userLng = pos.coords.longitude;
+          const locText = `GPS Locked &nbsp;·&nbsp; Near: ${userLandmark}`;
+          badge.innerHTML = `<div class="room-dot" style="background:var(--green);"></div>${locText}`;
+          modalRoom.innerHTML = locText;
+          
+          // Continuously transmit live location to staff if SOS is active
+          const activeAlertId = localStorage.getItem('currentAlertId');
+          if (activeAlertId && socket) {
+            socket.emit('update_location', { id: activeAlertId, lat: userLat, lng: userLng });
+          }
+        },
+        (err) => {
+          console.error("GPS Error:", err);
+          const locText = `GPS Failed &nbsp;·&nbsp; Near: ${userLandmark}`;
+          badge.innerHTML = `<div class="room-dot" style="background:var(--red);"></div>${locText}`;
+          modalRoom.innerHTML = locText;
+        },
+        { enableHighAccuracy: true, maximumAge: 0 }
+      );
+    }
+    
+    fetchMapConfig();
+  });
+
+  async function fetchMapConfig() {
+    try {
+      const res = await fetch('/api/config');
+      const config = await res.json();
+      if (config.mapImage) {
+        const svg = document.querySelector('.floor-plan');
+        if (svg) {
+          const rects = svg.querySelectorAll('rect');
+          rects.forEach(r => r.style.display = 'none');
+          const texts = svg.querySelectorAll('text');
+          // Hide text except for the dynamic danger zones/nodes if we add them, but keeping it simple:
+          texts.forEach(t => t.style.display = 'none');
+          
+          const imgHtml = `<image href="${config.mapImage}" x="0" y="0" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" opacity="0.9" />`;
+          svg.insertAdjacentHTML('afterbegin', imgHtml);
+        }
+      }
+    } catch(e) {
+      console.error("Failed to fetch map config", e);
+    }
+  }
 
   /* MULTI-LANGUAGE */
   const i18n = {
@@ -893,8 +958,10 @@
       id: 'alert_' + Date.now(),
       type: currentType,
       time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-      room: 'Room 412',
-      floor: 'Floor 4',
+      room: userLat && userLng ? `${userLat.toFixed(5)}, ${userLng.toFixed(5)}` : 'GPS Unavailable',
+      floor: userLandmark,
+      lat: userLat,
+      lng: userLng,
       severity: currentType === 'fire' || currentType === 'medical' ? 'high' : 'medium',
       status: 'active',
       media: []
@@ -1133,7 +1200,7 @@
       const res = await fetch('/api/route', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ startRoom: 'Room 412', dangerZones })
+        body: JSON.stringify({ startLat: userLat, startLng: userLng, floor: userLandmark, dangerZones })
       });
       const routeData = await res.json();
       if (routeData.success && routeData.path.length > 0) {

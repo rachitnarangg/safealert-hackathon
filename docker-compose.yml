@@ -1,0 +1,49 @@
+# ============================================================
+# docker-compose.yml — SafeAlert Local + Cloud Development
+# ============================================================
+# This file lets you run the entire SafeAlert stack with one
+# command: `docker compose up`
+#
+# Services defined:
+#   1. safealert-server  — The main Node.js Express API + WebSocket server
+#   2. (Optional) caddy  — A reverse proxy for HTTPS in production
+# ============================================================
+
+version: '3.9'
+
+services:
+
+  # ── Main Application ──────────────────────────────────────
+  safealert-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: safealert-server
+    restart: unless-stopped
+    ports:
+      - "3000:3000"           # Maps localhost:3000 → container:3000
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Reads from .env file in the same directory
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER}
+      # MongoDB Atlas connection string for cloud database
+      DATABASE_URL: ${DATABASE_URL}
+    volumes:
+      # Persist the SQLite file even if the container restarts (local dev only)
+      # For production, this is replaced by DATABASE_URL pointing to MongoDB Atlas
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/config"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+# ── Persistent Volumes ───────────────────────────────────────
+volumes:
+  safealert-data:

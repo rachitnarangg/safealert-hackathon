@@ -288,6 +288,13 @@
         <div class="qr-area">
           <img class="qr-img" id="qrImage" src="" alt="QR Code">
           <div class="qr-url" id="qrUrl">Click below to generate a QR code for the guest crisis portal</div>
+          
+          <div style="margin: 15px 0;">
+            <select id="qrLandmarkSelect" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; font-size: 14px;" required>
+              <option value="">-- Select Nearest Landmark (Required) --</option>
+            </select>
+          </div>
+
           <button class="qr-gen-btn" onclick="generateQR()">Generate QR Code</button>
         </div>
       </div>
@@ -357,8 +364,13 @@
 
     function renderRooms() {
       const list = document.getElementById('roomList');
+      const qrSelect = document.getElementById('qrLandmarkSelect');
       list.innerHTML = '';
+      
+      qrSelect.innerHTML = '<option value="">-- Select Nearest Landmark (Required) --</option>';
+      
       rooms.forEach((r, i) => {
+        // Render in admin list
         const div = document.createElement('div');
         div.className = 'room-item';
         div.innerHTML = `
@@ -369,6 +381,14 @@
           </button>
         `;
         list.appendChild(div);
+        
+        // Render in QR dropdown as landmarks
+        if (r.name && r.name.trim() !== '') {
+          const opt = document.createElement('option');
+          opt.value = encodeURIComponent(r.name);
+          opt.textContent = r.name + (r.floor ? ` (${r.floor})` : '');
+          qrSelect.appendChild(opt);
+        }
       });
     }
 
@@ -531,13 +551,19 @@
     /* QR CODE */
     async function generateQR() {
       try {
+        const selectedLandmark = document.getElementById('qrLandmarkSelect').value;
+        if (!selectedLandmark) {
+          showToast('Error: Please select a nearest landmark first');
+          return;
+        }
+
         const res = await fetch('/api/ip');
         const data = await res.json();
         const localIp = data.ip;
         
         // Build the URL using the real network IP instead of localhost
         const currentUrl = new URL(window.location.href);
-        const portalUrl = `http://${localIp}:${currentUrl.port}/crisis-portal.html`;
+        const portalUrl = `http://${localIp}:${currentUrl.port}/crisis-portal.html?landmark=${selectedLandmark}`;
         
         const qrApiUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(portalUrl);
         document.getElementById('qrImage').src = qrApiUrl;

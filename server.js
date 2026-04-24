@@ -1,3 +1,5 @@
+require('dotenv').config(); // Load .env file first — before any other code
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -18,7 +20,8 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true })); // For Twilio webhooks
 app.use(express.static(__dirname)); // Serve HTML files in the same directory
 
-const JWT_SECRET = 'safealert-super-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET || 'safealert-dev-secret-change-in-production';
+const PORT = process.env.PORT || 3000;
 let db;
 
 async function initDB() {
@@ -56,10 +59,14 @@ async function initDB() {
       time TEXT,
       resolvedAt TEXT,
       media TEXT,
-      children TEXT
+      children TEXT,
+      lat REAL,
+      lng REAL
     )
   `);
   try { await db.exec(`ALTER TABLE incidents ADD COLUMN children TEXT`); } catch (e) { }
+  try { await db.exec(`ALTER TABLE incidents ADD COLUMN lat REAL`); } catch (e) { }
+  try { await db.exec(`ALTER TABLE incidents ADD COLUMN lng REAL`); } catch (e) { }
 
   // Initialize empty config if not exists
   const conf = await db.get('SELECT * FROM config WHERE id = 1');
@@ -129,7 +136,6 @@ let alertBuffer = [];
 let processingBuffer = false;
 const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-
 const hotelGraph = {
   "Room 401": { x: 50, y: 70, edges: ["Corridor West"] },
   "Room 412": { x: 115, y: 70, edges: ["Corridor Mid1"] },
@@ -188,9 +194,9 @@ async function saveAndEmitIncident(inc) {
   const mediaStr = JSON.stringify(inc.media || []);
   const childrenStr = JSON.stringify(inc.children || []);
   await db.run(`
-    INSERT INTO incidents (id, type, room, floor, severity, status, escalated, time, resolvedAt, media, children)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [inc.id, inc.type, inc.room, inc.floor, inc.severity, inc.status, inc.escalated ? 1 : 0, inc.time, null, mediaStr, childrenStr]);
+    INSERT INTO incidents (id, type, room, floor, severity, status, escalated, time, resolvedAt, media, children, lat, lng)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [inc.id, inc.type, inc.room, inc.floor, inc.severity, inc.status, inc.escalated ? 1 : 0, inc.time, null, mediaStr, childrenStr, inc.lat || null, inc.lng || null]);
   io.emit('new_alert', inc);
 }
 
@@ -268,15 +274,47 @@ ONLY OUTPUT VALID JSON.`;
 setInterval(processAlertBuffer, 5000);
 
 // --- Routing ---
+function getNearestNode(lat, lng) {
+  // Demo mock bounds for hackathon
+  const MIN_LAT = 34.0500, MAX_LAT = 34.0510;
+  const MIN_LNG = -118.2500, MAX_LNG = -118.2490;
+  
+  // Map to 340x260 coordinate space of the graph
+  let x = ((lng - MIN_LNG) / (MAX_LNG - MIN_LNG)) * 340;
+  let y = ((MAX_LAT - lat) / (MAX_LAT - MIN_LAT)) * 260;
+
+  if (isNaN(x) || isNaN(y)) return "Room 412";
+
+  let closestNode = null;
+  let minDistance = Infinity;
+
+  for (const [nodeName, data] of Object.entries(hotelGraph)) {
+    const dist = Math.sqrt(Math.pow(data.x - x, 2) + Math.pow(data.y - y, 2));
+    if (dist < minDistance) {
+      minDistance = dist;
+      closestNode = nodeName;
+    }
+  }
+  return closestNode || "Room 412";
+}
+
 app.post('/api/route', (req, res) => {
-  const { startRoom, dangerZones } = req.body;
-  const path = dijkstra(startRoom, "Exit Stair B", dangerZones || []);
+  const { startLat, startLng, startRoom, dangerZones } = req.body;
+  
+  let node = startRoom;
+  if (startLat && startLng) {
+    node = getNearestNode(startLat, startLng);
+  } else if (!node) {
+    node = "Room 412"; // Fallback
+  }
+
+  const path = dijkstra(node, "Exit Stair B", dangerZones || []);
   
   if (path.length === 0 || path.includes(undefined)) {
     return res.json({ success: false, path: [] });
   }
   
-  const coords = path.map(node => ({ node, x: hotelGraph[node].x, y: hotelGraph[node].y }));
+  const coords = path.map(n => ({ node: n, x: hotelGraph[n].x, y: hotelGraph[n].y }));
   res.json({ success: true, path: coords });
 });
 
@@ -442,13 +480,25 @@ app.get('/api/ip', (req, res) => {
 // === SOCKET.IO ===
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
+  
+  socket.on('update_location', async (data) => {
+    // data = { id, lat, lng }
+    // Optionally update DB
+    await db.run('UPDATE incidents SET lat = ?, lng = ? WHERE id = ?', 
+      [data.lat, data.lng, data.id]);
+    
+    // Broadcast immediately to the staff dashboard
+    io.emit('location_updated', data);
+  });
+
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
   });
 });
 
 initDB().then(() => {
-  server.listen(3000, () => {
-    console.log('SafeAlert Backend running on http://localhost:3000');
+  server.listen(PORT, () => {
+    console.log(`SafeAlert Backend running on http://localhost:${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 });
