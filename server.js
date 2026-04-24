@@ -127,7 +127,8 @@ app.post('/api/login', async (req, res) => {
 // --- AI Alert Buffer ---
 let alertBuffer = [];
 let processingBuffer = false;
-const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'AIzaSyBwnILUMAYQCsHqnIGphs6N6aymcf4JFic');
+const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
 
 const hotelGraph = {
   "Room 401": { x: 50, y: 70, edges: ["Corridor West"] },
