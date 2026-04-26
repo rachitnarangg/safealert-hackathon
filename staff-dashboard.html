@@ -124,16 +124,21 @@
       min-height: 600px;
     }
     .map-svg { width: 100%; height: 100%; }
-    .map-marker {
-      position: absolute; width: 16px; height: 16px; background: var(--red); border-radius: 50%;
-      transform: translate(-50%, -50%); display: none;
+    .dynamic-marker {
+      position: absolute; width: 14px; height: 14px; border-radius: 50%;
+      transform: translate(-50%, -50%); cursor: pointer; z-index: 10;
+      border: 2px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      transition: left 0.8s cubic-bezier(0.4, 0, 0.2, 1), top 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s;
+    }
+    .dynamic-marker:hover { transform: translate(-50%, -50%) scale(1.3); z-index: 20; }
+    .dynamic-marker.active-marker {
+      width: 18px; height: 18px; z-index: 30; border: 3px solid #fff;
       animation: pulseMarker 1.5s infinite;
-      transition: left 0.8s cubic-bezier(0.4, 0, 0.2, 1), top 0.8s cubic-bezier(0.4, 0, 0.2, 1);
     }
     @keyframes pulseMarker {
-      0% { box-shadow: 0 0 0 0 rgba(255,59,48,0.4); }
-      70% { box-shadow: 0 0 0 15px rgba(255,59,48,0); }
-      100% { box-shadow: 0 0 0 0 rgba(255,59,48,0); }
+      0% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 currentColor; }
+      70% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 15px transparent; }
+      100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 transparent; }
     }
     @keyframes pulse {
       0% { opacity: 1; }
@@ -488,7 +493,6 @@
         <rect x="100" y="300" width="350" height="200" rx="12" fill="#F2F2F7" stroke="#D1D1D6"/>
         <path d="M275 175 L400 175 L400 400" stroke="#007AFF" stroke-width="4" stroke-dasharray="10 10" opacity="0.3"/>
       </svg>
-      <div class="map-marker" id="mapMarker" style="left: 21.8%; top: 29.1%;"></div>
     </div>
   </div>
 
@@ -616,19 +620,18 @@
         `;
         feed.appendChild(card);
       });
+      renderMapMarkers();
     }
 
     function updateStats() {
-      const activeCount = alertsData.filter(a => a.status === 'active').length;
+      const activeCount = alertsData.filter(a => a.status === 'active' || a.status === 'not_safe' || a.status === 'non_responsive' || a.severity === 'critical').length;
       document.getElementById('statIncidents').textContent = activeCount;
       if (activeCount > 0) {
         document.getElementById('statStaff').textContent = activeCount * 2;
-        document.getElementById('mapMarker').style.display = 'block';
         if(!tickerInterval) startTicker();
       } else {
         document.getElementById('statStaff').textContent = '0';
         document.getElementById('statTime').textContent = '--:--';
-        document.getElementById('mapMarker').style.display = 'none';
         clearInterval(tickerInterval);
         tickerInterval = null;
       }
@@ -653,6 +656,37 @@
       return { x: percentX + '%', y: percentY + '%' };
     }
 
+    function renderMapMarkers() {
+      const container = document.querySelector('.map-container');
+      document.querySelectorAll('.dynamic-marker').forEach(el => el.remove());
+
+      alertsData.forEach(alert => {
+        if (alert.status === 'resolved') return; // Hide resolved
+        
+        const pos = mapGPSToSVG(alert.lat || 34.0505, alert.lng || -118.2495); // Default to center if missing
+
+        const marker = document.createElement('div');
+        marker.className = `dynamic-marker ${alert.id === activeAlertId ? 'active-marker' : ''}`;
+        marker.style.left = pos.x;
+        marker.style.top = pos.y;
+        
+        let color = '#FF3B30';
+        if (alert.status === 'safe') color = '#34C759';
+        else if (alert.status === 'non_responsive') color = '#8B0000';
+        else if (alert.status === 'not_safe') color = '#FF3B30';
+        
+        marker.style.backgroundColor = color;
+        marker.style.color = color; // For currentColor box-shadow
+
+        marker.onclick = (e) => {
+          e.stopPropagation();
+          selectAlert(alert.id);
+        };
+
+        container.appendChild(marker);
+      });
+    }
+
     function selectAlert(id) {
       activeAlertId = id;
       clearEscalation(id); // Acknowledge = stop escalation
@@ -661,18 +695,6 @@
       
       const alert = alertsData.find(a => a.id === id);
       if (!alert) return;
-
-      const marker = document.getElementById('mapMarker');
-      if (alert.lat && alert.lng) {
-        const pos = mapGPSToSVG(alert.lat, alert.lng);
-        marker.style.left = pos.x;
-        marker.style.top = pos.y;
-        marker.style.display = 'block';
-      } else {
-        marker.style.left = '50%';
-        marker.style.top = '50%';
-        marker.style.display = 'block';
-      }
 
       document.getElementById('detailSubtitle').textContent = `Tracking ID: ${alert.id}`;
       

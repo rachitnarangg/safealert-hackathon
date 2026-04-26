@@ -220,7 +220,10 @@
         </div>
         <input type="file" id="mapFile" accept="image/*" style="display:none" onchange="previewMap(this)">
         <img class="map-preview" id="mapPreview">
-        <button class="add-room-btn" id="aiDetectBtn" style="margin-top: 15px; display: none; background: #2C3E50; color: white;" onclick="autoDetectRooms()">Auto-Detect via AI Analysis</button>
+        <div style="display:flex; gap:10px; margin-top:15px;">
+          <button class="add-room-btn" id="changeMapBtn" style="display:none; background:#636366; color:white; flex:1;" onclick="document.getElementById('mapFile').click()">Change Floor Plan</button>
+          <button class="add-room-btn" id="aiDetectBtn" style="display:none; background:#2C3E50; color:white; flex:1;" onclick="autoDetectRooms()">Auto-Detect via AI Analysis</button>
+        </div>
       </div>
     </div>
 
@@ -430,6 +433,7 @@
         preview.style.display = 'block';
         document.getElementById('mapUploadArea').style.display = 'none';
         document.getElementById('aiDetectBtn').style.display = 'block';
+        document.getElementById('changeMapBtn').style.display = 'block';
       };
       reader.readAsDataURL(input.files[0]);
     }
@@ -457,7 +461,8 @@
             result.data.infrastructure.forEach(i => addRoom(i.name, i.type || 'Infrastructure'));
           }
         } else {
-          showToast('AI failed to detect rooms. Please try again.');
+          showToast(result.error || 'AI failed to detect rooms. Please try again.');
+          console.error('AI Analysis Error:', result.error);
         }
       } catch (e) {
         console.error(e);
@@ -529,6 +534,8 @@
           document.getElementById('mapPreview').src = mapImageData;
           document.getElementById('mapPreview').style.display = 'block';
           document.getElementById('mapUploadArea').style.display = 'none';
+          document.getElementById('aiDetectBtn').style.display = 'block';
+          document.getElementById('changeMapBtn').style.display = 'block';
         }
 
         rooms = config.rooms || [];

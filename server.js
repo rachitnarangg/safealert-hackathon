@@ -390,7 +390,10 @@ app.post('/api/sms-webhook', async (req, res) => {
 // --- AI Map Analysis ---
 app.post('/api/analyze-map', async (req, res) => {
   const { imageData } = req.body;
-  if (!imageData) return res.status(400).json({ error: 'No image provided' });
+  if (!imageData) return res.status(400).json({ success: false, error: 'No image provided' });
+  if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'your_gemini_api_key_here') {
+    return res.status(500).json({ success: false, error: 'GEMINI_API_KEY not configured. Please set a valid key in your .env file.' });
+  }
 
   try {
     const base64Str = imageData.replace(/^data:image\/\w+;base64,/, "");
