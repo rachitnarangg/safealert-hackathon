@@ -214,28 +214,6 @@ function dijkstra(startNode, endNode, dangerZones) {
   return path;
 }
 
-const connectedGuests = {}; // socket.id -> { room, cprTrained }
-
-function triggerGoodSamaritan(incident) {
-  if (incident.type !== 'medical') return;
-  const victimNode = incident.room;
-  const victimData = hotelGraph[victimNode];
-  
-  for (const [sid, guest] of Object.entries(connectedGuests)) {
-    if (guest.cprTrained && guest.room !== incident.room) {
-      let isNearby = true; // Fallback
-      if (victimData && hotelGraph[guest.room]) {
-        const guestData = hotelGraph[guest.room];
-        const dist = Math.sqrt(Math.pow(victimData.x - guestData.x, 2) + Math.pow(victimData.y - guestData.y, 2));
-        if (dist > 150) isNearby = false;
-      }
-      if (isNearby) {
-        io.to(sid).emit('good_samaritan_alert', { room: incident.room, id: incident.id });
-      }
-    }
-  }
-}
-
 async function saveAndEmitIncident(inc) {
   const mediaStr = JSON.stringify(inc.media || []);
   const childrenStr = JSON.stringify(inc.children || []);
@@ -244,7 +222,6 @@ async function saveAndEmitIncident(inc) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [inc.id, inc.type, inc.room, inc.floor, inc.severity, inc.status, inc.escalated ? 1 : 0, inc.time, null, mediaStr, childrenStr, inc.lat || null, inc.lng || null]);
   io.emit('new_alert', inc);
-  triggerGoodSamaritan(inc);
 }
 
 async function processAlertBuffer() {
@@ -458,26 +435,6 @@ DO NOT include any markdown formatting or \`\`\`json blocks. Return ONLY the raw
 });
 
 // --- Incidents ---
-app.post('/api/evac-instructions', async (req, res) => {
-  const { guest_location, fire_source } = req.body;
-  if (!guest_location || !fire_source) return res.json({ instruction: "Evacuate immediately via the nearest safe exit." });
-  
-  try {
-    const prompt = `You are a real-time dynamic evacuation AI for a hotel. 
-A hazard has been detected at ${fire_source}. The guest is located at ${guest_location}.
-Based on typical hotel layouts and logic, give a short, direct, custom escape instruction in 1-2 sentences. 
-Tell them exactly where to go based on the fire source, e.g. "Turn left out of your door, the right hallway is blocked."
-Return ONLY the instruction text.`;
-    const model = ai.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const result = await model.generateContent(prompt);
-    let instruction = result.response.text().trim();
-    res.json({ instruction });
-  } catch (e) {
-    console.error("Gemini Evac Error:", e);
-    res.json({ instruction: `HAZARD DETECTED at ${fire_source}. Avoid this area and exit via the nearest safe staircase.` });
-  }
-});
-
 app.get('/api/incidents', async (req, res) => {
   const rows = await db.all('SELECT * FROM incidents ORDER BY rowid DESC');
   const incidents = rows.map(r => ({
@@ -644,12 +601,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('register_guest', (data) => {
-    connectedGuests[socket.id] = data;
-  });
-
   socket.on('disconnect', () => {
-    delete connectedGuests[socket.id];
     console.log('Client disconnected:', socket.id);
   });
 });
