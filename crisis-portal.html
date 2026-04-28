@@ -801,38 +801,6 @@
   </div>
 </div>
 
-<!-- REGISTRATION MODAL -->
-<div class="modal-overlay" id="registrationModal">
-  <div class="modal-sheet" style="padding-bottom:36px;">
-    <div class="modal-title">Welcome to SafeAlert</div>
-    <div class="modal-desc">Please register your stay to receive targeted safety alerts.</div>
-    <div style="margin-bottom: 16px;">
-      <label style="font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Room Number (e.g. Room 412)</label>
-      <input type="text" id="regRoomInput" placeholder="Room 412" style="width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--border); font-size: 16px;">
-    </div>
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
-      <input type="checkbox" id="regCprInput" style="width: 20px; height: 20px;">
-      <label for="regCprInput" style="font-size: 14px; color: var(--text2);">I am CPR / First Aid Certified (Opt-in to Good Samaritan alerts)</label>
-    </div>
-    <button class="modal-confirm-btn" style="background:var(--blue);color:#fff;" onclick="submitRegistration()">Complete Registration</button>
-  </div>
-</div>
-
-<!-- GOOD SAMARITAN MODAL -->
-<div class="modal-overlay" id="samaritanModal" style="align-items: center;">
-  <div class="modal-sheet" style="padding-bottom:36px; background: rgba(28,28,30,0.85); backdrop-filter: blur(20px); border: 1px solid rgba(0,122,255,0.3); border-radius: 28px;">
-    <div class="call-avatar" style="background: rgba(0,122,255,0.15);">
-      <svg viewBox="0 0 24 24" fill="none" style="width:40px;height:40px; stroke:#007AFF;"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </div>
-    <div class="call-modal-name" style="color:#fff; font-size:24px;">GOOD SAMARITAN ALERT</div>
-    <div class="call-modal-num" id="samaritanDesc" style="color:rgba(255,255,255,0.8); margin-bottom:24px; line-height:1.4;">A medical emergency has been reported nearby. Your CPR skills could save a life.</div>
-    <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
-      <button class="modal-confirm-btn" style="background:#007AFF; color:#fff; margin-bottom:0;" onclick="acceptSamaritan()">I'm on my way</button>
-      <button class="modal-confirm-btn" style="background:transparent; border: 1px solid #fff; color:#fff; margin-bottom:0;" onclick="closeModal('samaritanModal')">Cannot assist right now</button>
-    </div>
-  </div>
-</div>
-
 <button class="chat-fab" id="chatFab" onclick="toggleChat()">
   <svg viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
   <div class="chat-badge" id="chatBadge">0</div>
@@ -875,26 +843,6 @@
   let pendingCallNum = '';
   let lastMediaCount = 0;
 
-  let guestProfile = JSON.parse(localStorage.getItem('guestProfile') || 'null');
-  
-  function checkRegistration() {
-    if (!guestProfile) {
-      document.getElementById('registrationModal').classList.add('open');
-    } else {
-      if(socket) socket.emit('register_guest', guestProfile);
-    }
-  }
-  
-  function submitRegistration() {
-    const room = document.getElementById('regRoomInput').value.trim() || 'Unknown';
-    const cprTrained = document.getElementById('regCprInput').checked;
-    guestProfile = { room, cprTrained };
-    localStorage.setItem('guestProfile', JSON.stringify(guestProfile));
-    if(socket) socket.emit('register_guest', guestProfile);
-    closeModal('registrationModal');
-    showToast('Registration complete');
-  }
-
   // Read dynamic landmark assignment from QR code URL
   const urlParams = new URLSearchParams(window.location.search);
   const userLandmark = urlParams.get('landmark') ? decodeURIComponent(urlParams.get('landmark')) : 'Auto-detected';
@@ -934,8 +882,6 @@
         { enableHighAccuracy: true, maximumAge: 0 }
       );
     }
-    
-    checkRegistration();
   });
 
   /* MULTI-LANGUAGE */
@@ -1227,20 +1173,6 @@
 
   const socket = io();
 
-  socket.on('connect', () => {
-    if (guestProfile) socket.emit('register_guest', guestProfile);
-  });
-
-  socket.on('good_samaritan_alert', (data) => {
-    document.getElementById('samaritanDesc').textContent = `A medical emergency has been reported in ${data.room}. Your CPR skills could save a life.`;
-    document.getElementById('samaritanModal').classList.add('open');
-  });
-
-  function acceptSamaritan() {
-    closeModal('samaritanModal');
-    showToast('Thank you. The response team has been notified of your assistance.');
-  }
-
   socket.on('incident_resolved', (data) => {
     const currentAlertId = localStorage.getItem('currentAlertId');
     if (data.id === currentAlertId) {
@@ -1266,26 +1198,9 @@
     }
   });
 
-  socket.on('evacuation_danger_zones', async (data) => {
+  socket.on('evacuation_danger_zones', (data) => {
     updateEvacRoute(data.dangerZones || []);
     showToast('AI: Route recalculated — hazard zones avoided');
-
-    // Pre-Emptive Safety feature: dynamic Gemini instruction
-    const guest_location = guestProfile?.room || userLandmark || 'Unknown';
-    const fire_source = (data.dangerZones && data.dangerZones.length > 0) ? data.dangerZones.join(', ') : 'Unknown';
-    try {
-      const res = await fetch('/api/evac-instructions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ guest_location, fire_source })
-      });
-      const d = await res.json();
-      if (d.instruction) {
-        showToast('AI EVACUATION: ' + d.instruction);
-        const aiBadgeText = document.querySelector('.ai-badge-text span');
-        if (aiBadgeText) aiBadgeText.innerHTML = `<strong>DYNAMIC INSTRUCTION:</strong> ${d.instruction}`;
-      }
-    } catch (e) { console.error("Error fetching AI instruction", e); }
   });
 
   // --- WELFARE CHECK & BROADCAST LOGIC ---
